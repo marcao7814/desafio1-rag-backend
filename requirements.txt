@@ -1,0 +1,25 @@
+# LangChain core
+langchain>=0.3.0,<1.0.0
+langchain-core>=0.3.0,<0.4.0
+langchain-text-splitters>=0.3.0,<1.0.0
+langchain-community>=0.3.0,<1.0.0
+
+# Provedores LLM e Embeddings
+langchain-openai>=0.2.0,<1.0.0
+langchain-google-genai>=2.0.0,<3.0.0
+google-generativeai>=0.8.0
+
+# Banco vetorial (PostgreSQL + pgVector)
+langchain-postgres>=0.0.12
+psycopg[binary]>=3.1.0
+pgvector>=0.3.0
+
+# PDF
+pypdf>=4.0.0
+reportlab>=4.0.0
+
+# Variáveis de ambiente
+python-dotenv>=1.0.0
+
+# Front-end web
+streamlit>=1.35.0
