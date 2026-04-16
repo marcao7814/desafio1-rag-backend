@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sistema RAG — Protótipo</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0e1117;
+    --surface:   #1a1d27;
+    --surface2:  #262730;
+    --border:    #31333f;
+    --primary:   #ff4b4b;
+    --primary-h: #c73333;
+    --secondary: #4f8ef7;
+    --success:   #21c354;
+    --warning:   #faca2b;
+    --info:      #3d9df3;
+    --text:      #fafafa;
+    --muted:     #8a8d99;
+    --radius:    8px;
+    --shadow:    0 2px 12px rgba(0,0,0,.45);
+    --font:      'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -.5px;
+  }
+
+  header .subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    border-left: 1px solid var(--border);
+    padding-left: 12px;
+    margin-left: 4px;
+  }
+
+  .main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+  }
+
+  /* ── Expander ─────────────────────────────────────────────── */
+  .expander {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .expander-header {
+    background: var(--surface);
+    padding: 14px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: background .15s;
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .expander-header:hover { background: var(--surface2); }
+
+  .expander-header .chevron {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform .2s;
+  }
+
+  .expander-body {
+    background: var(--bg);
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    display: none;
+  }
+
+  .expander.open .expander-body { display: block; }
+  .expander.open .chevron { transform: rotate(180deg); }
+
+  /* ── Form elements ────────────────────────────────────────── */
+  label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+
+  input[type="text"], select, textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    outline: none;
+    transition: border .15s;
+  }
+
+  input[type="text"]:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--secondary);
+  }
+
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* ── Buttons ──────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 600;
+    transition: background .15s, transform .1s;
+  }
+
+  .btn:active { transform: scale(.97); }
+
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-h); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+
+  .btn-danger { background: #7b2020; color: #fcc; }
+  .btn-danger:hover { background: #9b2626; }
+
+  .btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* ── Alerts ───────────────────────────────────────────────── */
+  .alert {
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 13px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .alert-success { background: #0d3321; border-left: 3px solid var(--success); color: #7deba0; }
+  .alert-info    { background: #0d2340; border-left: 3px solid var(--info);    color: #7dc6f5; }
+  .alert-warning { background: #302410; border-left: 3px solid var(--warning); color: #f5d87d; }
+  .alert-error   { background: #3b0d0d; border-left: 3px solid var(--primary); color: #f57d7d; }
+
+  /* ── Cards / surfaces ─────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin: 10px 0;
+  }
+
+  .card-sm { padding: 10px 14px; }
+
+  /* ── Grid ─────────────────────────────────────────────────── */
+  .row { display: flex; gap: 16px; }
+  .col { flex: 1; }
+  .col-2 { flex: 2; }
+  .col-3 { flex: 3; }
+
+  /* ── Table ────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: var(--surface); color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* ── Divider ──────────────────────────────────────────────── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  /* ── Badge ────────────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+
+  .badge-rag  { background: #1a3060; color: #7dc6f5; }
+  .badge-web  { background: #1a3020; color: #7debaa; }
+  .badge-cache{ background: #302415; color: #f5c87d; }
+
+  /* ── Radio ────────────────────────────────────────────────── */
+  .radio-group { display: flex; gap: 16px; }
+
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--text);
+    margin: 0;
+  }
+
+  input[type="radio"] { accent-color: var(--secondary); }
+
+  /* ── Checkbox ─────────────────────────────────────────────── */
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  input[type="checkbox"] { accent-color: var(--secondary); width: 15px; height: 15px; }
+
+  /* ── Upload zone ──────────────────────────────────────────── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    color: var(--muted);
+  }
+
+  .upload-zone:hover,
+  .upload-zone.drag { border-color: var(--secondary); background: rgba(79,142,247,.06); }
+
+  .upload-zone input { display: none; }
+  .upload-zone .icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-zone .hint { font-size: 12px; margin-top: 6px; }
+
+  /* ── Spinner ──────────────────────────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--secondary);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  .spinner-wrap {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .spinner-wrap.active { display: flex; }
+
+  /* ── Response box ─────────────────────────────────────────── */
+  .response-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 13.5px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    display: none;
+  }
+
+  .response-box.active { display: block; }
+
+  /* ── Chunk card ───────────────────────────────────────────── */
+  .chunk {
+    border-left: 3px solid var(--secondary);
+    padding: 10px 14px;
+    margin: 8px 0;
+    background: var(--surface);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 12.5px;
+  }
+
+  .chunk .chunk-meta { color: var(--muted); margin-bottom: 4px; font-size: 12px; }
+  .chunk .chunk-text { color: #cdd; font-style: italic; }
+
+  /* ── Source link ──────────────────────────────────────────── */
+  .source-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 6px;
+    margin: 6px 0;
+    font-size: 13px;
+    border: 1px solid var(--border);
+  }
+
+  .source-link a { color: var(--secondary); text-decoration: none; }
+  .source-link a:hover { text-decoration: underline; }
+  .source-link .num { color: var(--muted); font-weight: 700; min-width: 20px; }
+
+  /* ── History item ─────────────────────────────────────────── */
+  .hist-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .hist-header {
+    background: var(--surface);
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  .hist-header:hover { background: var(--surface2); }
+
+  .hist-body {
+    display: none;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 13px;
+  }
+
+  .hist-body.open { display: block; }
+
+  /* ── Caption / helper text ────────────────────────────────── */
+  .caption { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Section title ────────────────────────────────────────── */
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+
+  /* ── Tag ──────────────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: monospace;
+  }
+
+  /* ── Scrollbar ────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Util ─────────────────────────────────────────────────── */
+  .mt8  { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+  .mt16 { margin-top: 16px; }
+  .mb8  { margin-bottom: 8px; }
+  .gap8 { gap: 8px; }
+  .flex { display: flex; align-items: center; }
+  .hidden { display: none !important; }
+  strong { color: #e0e0ff; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Header ───────────────────────────────────────────── -->
+  <header>
+    <div class="logo">🤖 RAG</div>
+    <div class="subtitle">Sistema RAG — PDFs + Busca</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+      <span class="tag">gemini</span>
+      <span style="font-size:12px;color:var(--muted);">localhost:8501</span>
+    </div>
+  </header>
+
+  <!-- ── Main ─────────────────────────────────────────────── -->
+  <div class="main">
+
+    <h1>Sistema RAG — PDFs + Busca</h1>
+
+    <!-- ════════════════════════════════════════════════════════
+         SEÇÃO 1 — Gerenciar PDFs
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="expander open" id="sec1">
+      <div class="expander-header" onclick="toggle('sec1')">
+        <span>📂 Gerenciar PDFs</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="expander-body">
+
+        <!-- Upload zone -->
+        <label>Selecione de 1 a 5 PDFs</label>
+        <div class="upload-zone" id="dropzone"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="fileInput" multiple accept=".pdf"
+                 onchange="handleFiles(this.files)" />
+          <div class="icon">📄</div>
+          <div>Arraste PDFs aqui ou <strong>clique para selecionar</strong></div>
+          <div class="hint">Máximo 5 arquivos · Somente .pdf</div>
+        </div>
+
+        <!-- File list -->
+        <div id="fileList" class="mt8"></div>
+
+        <!-- Modo ingestão -->
+        <div class="mt12">
+          <label>Modo de ingestão</label>
+          <div class="radio-group">
+            <label><input type="radio" name="modo" value="adicionar" checked /> Adicionar aos existentes</label>
+            <label><input type="radio" name="modo" value="substituir" /> Substituir tudo</label>
+          </div>
+        </div>
+
+        <div class="mt12 flex gap8">
+          <button class="btn btn-primary" id="btnIngerir" onclick="ingerir()" disabled>
+            ⬆️ Ingerir PDFs
+          </button>
+        </div>
+
+        <div class="spinner-wrap mt8" id="spinIngest">
+          <div class="spinner"></div> Processando arquivos…
+        </div>
+
+        <div id="ingestMsg"></div>
+
+        <!-- PDFs no banco -->
+        <hr />
+        <div class="section-title">PDFs no banco</div>
+
+        <div class="row">
+          <div class="col-2">
+            <table id="tblPdfs">
+              <thead><tr><th>PDF gravado</th></tr></thead>
+              <tbody>
+                <tr><td>relatorio_anual_2023.pdf</td></tr>
+                <tr><td>contrato_prestacao_servicos.pdf</td></tr>
+                <tr><td>manual_operacoes.pdf</td></tr>
+              </tbody>
+            </table>
+            <div class="caption mt8" id="captionPdfs">Total: 3 arquivo(s) no banco</div>
+          </div>
+          <div class="col">
+            <label>Selecione para apagar</label>
+            <select id="selPdf">
+              <option>relatorio_anual_2023.pdf</option>
+              <option>contrato_prestacao_servicos.pdf</option>
+              <option>manual_operacoes.pdf</option>
+            </select>
+            <div class="mt8">
+              <button class="btn btn-secondary btn-sm" onclick="apagarSel()">🗑️ Apagar selecionado</button>
+            </div>
+            <hr />
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkConfirm" onchange="document.getElementById('btnApagarTodos').disabled=!this.checked" />
+              Confirmar exclusão de <strong>todos</strong> os PDFs
+            </label>
+            <div class="mt8">
+              <button class="btn btn-danger btn-sm" id="btnApagarTodos" onclick="apagarTodos()" disabled>
+                🗑️ Apagar todos os PDFs
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="pdfMsg"></div>
+
+      </div>
+    </div><!-- /sec1 -->
+
+
+    <!-- ════════════════════════════════════════════════════════
+         SEÇÃO 2 — Busca RAG
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="expander open" id="sec2">
+      <div class="expander-header" onclick="toggle('sec2')">
+        <span>🔍 Busca / Consulta</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="expander-body">
+
+        <label>Sua pergunta sobre os documentos</label>
+        <input type="text" id="inputRag"
+               placeholder="Ex.: Qual é o prazo de entrega do contrato?"
+               oninput="onRagInput()" />
+
+        <!-- Cache hit simulado -->
+        <div id="cacheHitRag" class="hidden">
+          <div class="alert alert-warning mt8">
+            ⚡ Resposta em cache de <strong id="cacheDate">14/04/2026 09:31</strong>.
+            Nenhum token será gerado.
+          </div>
+          <div class="radio-group mt8">
+            <label><input type="radio" name="acaoRag" value="usar" checked /> Usar resposta salva</label>
+            <label><input type="radio" name="acaoRag" value="refazer" /> Refazer consulta (gera tokens)</label>
+          </div>
+        </div>
+
+        <div class="mt12 flex gap8">
+          <button class="btn btn-primary" id="btnBuscar" onclick="buscarRag()" disabled>
+            🔍 Buscar
+          </button>
+        </div>
+
+        <div class="spinner-wrap mt8" id="spinRag">
+          <div class="spinner"></div> <span id="spinRagTxt">Buscando nos documentos…</span>
+        </div>
+
+        <!-- Resposta RAG -->
+        <div id="resultadoRag" class="hidden">
+          <hr />
+          <div class="mb8"><strong>Pergunta:</strong> <span id="perguntaRagExib"></span></div>
+          <div class="section-title" id="tituloRag">Resposta</div>
+          <div class="response-box active" id="respostaRag"></div>
+
+          <div class="mt12">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkChunks" onchange="toggleChunks()" />
+              Mostrar chunks recuperados
+            </label>
+          </div>
+
+          <div id="chunksArea" class="hidden mt8">
+            <div class="chunk">
+              <div class="chunk-meta">
+                <strong>[1]</strong> Score: <span class="tag">0.1342</span> &nbsp;
+                Arquivo: <span class="tag">contrato_prestacao_servicos.pdf</span> &nbsp;
+                Página: <span class="tag">4</span>
+              </div>
+              <div class="chunk-text">"O prazo de entrega dos serviços contratados é de 30 (trinta) dias corridos a partir da assinatura deste instrumento, podendo ser prorrogado mediante acordo entre as partes..."</div>
+            </div>
+            <div class="chunk">
+              <div class="chunk-meta">
+                <strong>[2]</strong> Score: <span class="tag">0.2187</span> &nbsp;
+                Arquivo: <span class="tag">contrato_prestacao_servicos.pdf</span> &nbsp;
+                Página: <span class="tag">7</span>
+              </div>
+              <div class="chunk-text">"Em caso de atraso na entrega, a contratada ficará sujeita à multa de 0,5% por dia útil de atraso, limitada a 10% do valor total do contrato..."</div>
+            </div>
+            <div class="chunk">
+              <div class="chunk-meta">
+                <strong>[3]</strong> Score: <span class="tag">0.2891</span> &nbsp;
+                Arquivo: <span class="tag">manual_operacoes.pdf</span> &nbsp;
+                Página: <span class="tag">12</span>
+              </div>
+              <div class="chunk-text">"Os prazos estipulados nos contratos devem ser monitorados semanalmente pela equipe de gestão, com relatório mensal ao gestor responsável..."</div>
+            </div>
+          </div>
+
+          <div class="mt12">
+            <button class="btn btn-secondary btn-sm" onclick="downloadPdf('rag')">📄 Baixar PDF desta resposta</button>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /sec2 -->
+
+
+    <!-- ════════════════════════════════════════════════════════
+         SEÇÃO 3 — Busca na Internet
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="expander" id="sec3">
+      <div class="expander-header" onclick="toggle('sec3')">
+        <span>🌐 Busca na Internet (via Gemini)</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="expander-body">
+
+        <label>Sua pergunta para a internet</label>
+        <input type="text" id="inputWeb"
+               placeholder="Ex.: Qual é a cotação do dólar hoje?"
+               oninput="onWebInput()" />
+
+        <!-- Cache hit web -->
+        <div id="cacheHitWeb" class="hidden">
+          <div class="alert alert-warning mt8">
+            ⚡ Resposta em cache de <strong>13/04/2026 17:45</strong>.
+            Nenhum token será gerado.
+          </div>
+          <div class="radio-group mt8">
+            <label><input type="radio" name="acaoWeb" value="usar" checked /> Usar resposta salva</label>
+            <label><input type="radio" name="acaoWeb" value="refazer" /> Refazer consulta (gera tokens)</label>
+          </div>
+        </div>
+
+        <div class="mt12 flex gap8">
+          <button class="btn btn-primary" id="btnBuscarWeb" onclick="buscarWeb()" disabled>
+            🌐 Buscar na Internet
+          </button>
+        </div>
+
+        <div class="spinner-wrap mt8" id="spinWeb">
+          <div class="spinner"></div> Buscando na internet…
+        </div>
+
+        <!-- Resposta Web -->
+        <div id="resultadoWeb" class="hidden">
+          <hr />
+          <div class="mb8"><strong>Pergunta:</strong> <span id="perguntaWebExib"></span></div>
+          <div class="section-title">Resposta</div>
+          <div class="response-box active" id="respostaWeb"></div>
+
+          <div id="fontesArea" class="mt12">
+            <div class="card card-sm">
+              <strong style="font-size:13px;">🔗 Fontes utilizadas (3 links)</strong>
+              <div class="mt8">
+                <div class="source-link">
+                  <span class="num">[1]</span>
+                  <a href="#" onclick="return false">Banco Central do Brasil — Taxa de Câmbio</a>
+                </div>
+                <div class="source-link">
+                  <span class="num">[2]</span>
+                  <a href="#" onclick="return false">Reuters Brasil — Mercado Financeiro</a>
+                </div>
+                <div class="source-link">
+                  <span class="num">[3]</span>
+                  <a href="#" onclick="return false">UOL Economia — Câmbio em tempo real</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt12">
+            <button class="btn btn-secondary btn-sm" onclick="downloadPdf('web')">📄 Baixar PDF desta resposta</button>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /sec3 -->
+
+
+    <!-- ════════════════════════════════════════════════════════
+         SEÇÃO 4 — Histórico
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="expander" id="sec4">
+      <div class="expander-header" onclick="toggle('sec4')">
+        <span>📋 Histórico de Perguntas e Respostas</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="expander-body">
+
+        <div class="caption mb8">Total: 5 registro(s) salvos</div>
+
+        <label>🔎 Filtrar por texto</label>
+        <input type="text" id="filtroHist" placeholder="Digite para filtrar perguntas…"
+               oninput="filtrarHist()" />
+
+        <div class="mt12" id="histLista">
+
+          <!-- Registro 1 — RAG -->
+          <div class="hist-item" data-texto="prazo entrega contrato documentos">
+            <div class="hist-header" onclick="toggleHist(this)">
+              <div class="flex gap8">
+                <span>🗓 14/04/2026 10:22</span>
+                <span class="badge badge-rag">📄 RAG</span>
+              </div>
+              <div style="color:var(--muted);flex:1;margin:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Qual é o prazo de entrega do contrato?
+              </div>
+              <span style="color:var(--muted);font-size:12px;">▼</span>
+            </div>
+            <div class="hist-body">
+              <p><strong>Pergunta:</strong> Qual é o prazo de entrega do contrato?</p>
+              <p class="mt8"><strong>Resposta:</strong></p>
+              <div class="card mt8" style="font-size:13px;">
+                Com base nos documentos analisados, o prazo de entrega dos serviços contratados é de <strong>30 dias corridos</strong> a partir da assinatura do contrato. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total.
+              </div>
+              <div class="card mt8 card-sm">
+                <strong style="font-size:12px;">Chunks utilizados (3)</strong>
+                <div class="chunk mt8">
+                  <div class="chunk-meta"><strong>[1]</strong> Score: <span class="tag">0.1342</span> &nbsp; contrato_prestacao_servicos.pdf &nbsp; Pág. 4</div>
+                  <div class="chunk-text">"O prazo de entrega dos serviços contratados é de 30 (trinta) dias corridos…"</div>
+                </div>
+              </div>
+              <div class="row mt12 gap8">
+                <button class="btn btn-secondary btn-sm" onclick="downloadPdf('hist')">📄 Baixar PDF</button>
+                <button class="btn btn-danger btn-sm" onclick="apagarRegistro(this)">🗑️ Apagar este registro</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registro 2 — WEB -->
+          <div class="hist-item" data-texto="dólar cotação câmbio internet hoje">
+            <div class="hist-header" onclick="toggleHist(this)">
+              <div class="flex gap8">
+                <span>🗓 13/04/2026 17:45</span>
+                <span class="badge badge-web">🌐 Web</span>
+              </div>
+              <div style="color:var(--muted);flex:1;margin:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Qual é a cotação do dólar hoje?
+              </div>
+              <span style="color:var(--muted);font-size:12px;">▼</span>
+            </div>
+            <div class="hist-body">
+              <p><strong>Pergunta:</strong> Qual é a cotação do dólar hoje?</p>
+              <p class="mt8"><strong>Resposta:</strong></p>
+              <div class="card mt8" style="font-size:13px;">
+                Hoje, 13/04/2026, o dólar americano (USD) está cotado a <strong>R$ 5,78</strong> na compra e <strong>R$ 5,81</strong> na venda, de acordo com o Banco Central do Brasil. A moeda acumula alta de 1,2% na semana.
+              </div>
+              <div class="card mt8 card-sm">
+                <strong style="font-size:12px;">🔗 Fontes (3 links)</strong>
+                <div class="source-link mt8">
+                  <span class="num">[1]</span>
+                  <a href="#" onclick="return false">Banco Central do Brasil — Taxa de Câmbio</a>
+                </div>
+                <div class="source-link">
+                  <span class="num">[2]</span>
+                  <a href="#" onclick="return false">Reuters Brasil — Mercado Financeiro</a>
+                </div>
+              </div>
+              <div class="row mt12 gap8">
+                <button class="btn btn-secondary btn-sm" onclick="downloadPdf('hist')">📄 Baixar PDF</button>
+                <button class="btn btn-danger btn-sm" onclick="apagarRegistro(this)">🗑️ Apagar este registro</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registro 3 — RAG -->
+          <div class="hist-item" data-texto="multa atraso pagamento documentos">
+            <div class="hist-header" onclick="toggleHist(this)">
+              <div class="flex gap8">
+                <span>🗓 13/04/2026 14:10</span>
+                <span class="badge badge-rag">📄 RAG</span>
+              </div>
+              <div style="color:var(--muted);flex:1;margin:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Qual é a multa por atraso no pagamento?
+              </div>
+              <span style="color:var(--muted);font-size:12px;">▼</span>
+            </div>
+            <div class="hist-body">
+              <p><strong>Pergunta:</strong> Qual é a multa por atraso no pagamento?</p>
+              <p class="mt8"><strong>Resposta:</strong></p>
+              <div class="card mt8" style="font-size:13px;">
+                Conforme o contrato, o atraso no pagamento implica multa de <strong>2%</strong> sobre o valor da parcela vencida, acrescida de juros moratórios de <strong>1% ao mês</strong>, calculados pro rata die.
+              </div>
+              <div class="row mt12 gap8">
+                <button class="btn btn-secondary btn-sm" onclick="downloadPdf('hist')">📄 Baixar PDF</button>
+                <button class="btn btn-danger btn-sm" onclick="apagarRegistro(this)">🗑️ Apagar este registro</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registro 4 — WEB -->
+          <div class="hist-item" data-texto="inteligência artificial ia tendências 2025 internet">
+            <div class="hist-header" onclick="toggleHist(this)">
+              <div class="flex gap8">
+                <span>🗓 12/04/2026 09:05</span>
+                <span class="badge badge-web">🌐 Web</span>
+              </div>
+              <div style="color:var(--muted);flex:1;margin:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Quais são as tendências de IA em 2025?
+              </div>
+              <span style="color:var(--muted);font-size:12px;">▼</span>
+            </div>
+            <div class="hist-body">
+              <p><strong>Pergunta:</strong> Quais são as tendências de IA em 2025?</p>
+              <p class="mt8"><strong>Resposta:</strong></p>
+              <div class="card mt8" style="font-size:13px;">
+                As principais tendências de Inteligência Artificial em 2025 incluem: modelos multimodais de grande escala, agentes autônomos, IA generativa aplicada ao setor empresarial, regulamentação crescente na Europa e EUA, e o avanço dos modelos de raciocínio (reasoning models).
+              </div>
+              <div class="row mt12 gap8">
+                <button class="btn btn-secondary btn-sm" onclick="downloadPdf('hist')">📄 Baixar PDF</button>
+                <button class="btn btn-danger btn-sm" onclick="apagarRegistro(this)">🗑️ Apagar este registro</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registro 5 — RAG -->
+          <div class="hist-item" data-texto="vigência contrato período documentos">
+            <div class="hist-header" onclick="toggleHist(this)">
+              <div class="flex gap8">
+                <span>🗓 11/04/2026 16:50</span>
+                <span class="badge badge-rag">📄 RAG</span>
+              </div>
+              <div style="color:var(--muted);flex:1;margin:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Por quanto tempo é válido o contrato?
+              </div>
+              <span style="color:var(--muted);font-size:12px;">▼</span>
+            </div>
+            <div class="hist-body">
+              <p><strong>Pergunta:</strong> Por quanto tempo é válido o contrato?</p>
+              <p class="mt8"><strong>Resposta:</strong></p>
+              <div class="card mt8" style="font-size:13px;">
+                O contrato tem vigência de <strong>12 meses</strong>, contados a partir da data de assinatura, podendo ser renovado por igual período mediante manifestação das partes com antecedência mínima de 30 dias.
+              </div>
+              <div class="row mt12 gap8">
+                <button class="btn btn-secondary btn-sm" onclick="downloadPdf('hist')">📄 Baixar PDF</button>
+                <button class="btn btn-danger btn-sm" onclick="apagarRegistro(this)">🗑️ Apagar este registro</button>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /histLista -->
+
+        <div id="histVazio" class="hidden">
+          <div class="alert alert-info">Nenhuma pergunta encontrada com este filtro.</div>
+        </div>
+
+      </div>
+    </div><!-- /sec4 -->
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+
+<script>
+/* ── Expander toggle ───────────────────────────────────────── */
+function toggle(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+/* ── History item toggle ───────────────────────────────────── */
+function toggleHist(header) {
+  header.nextElementSibling.classList.toggle('open');
+}
+
+/* ── File upload ───────────────────────────────────────────── */
+let selectedFiles = [];
+
+function handleFiles(files) {
+  selectedFiles = Array.from(files).slice(0, 5);
+  renderFileList();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (!selectedFiles.length) { el.innerHTML = ''; document.getElementById('btnIngerir').disabled = true; return; }
+  el.innerHTML = selectedFiles.map((f, i) =>
+    `<div class="flex gap8 mt8" style="font-size:13px;">
+       <span>📄</span>
+       <span>${f.name}</span>
+       <span class="tag">${(f.size/1024).toFixed(1)} KB</span>
+       <button class="btn btn-secondary btn-sm" style="margin-left:auto;padding:2px 8px;" onclick="removeFile(${i})">✕</button>
+     </div>`
+  ).join('');
+  if (selectedFiles.length > 5) {
+    el.innerHTML += `<div class="alert alert-warning mt8">Máximo 5 arquivos. Somente os 5 primeiros serão processados.</div>`;
+  }
+  document.getElementById('btnIngerir').disabled = false;
+}
+
+function removeFile(i) {
+  selectedFiles.splice(i, 1);
+  renderFileList();
+}
+
+/* ── Ingerir PDFs ──────────────────────────────────────────── */
+function ingerir() {
+  const spin = document.getElementById('spinIngest');
+  const msg  = document.getElementById('ingestMsg');
+  const btn  = document.getElementById('btnIngerir');
+  btn.disabled = true;
+  spin.classList.add('active');
+  msg.innerHTML = '';
+
+  const n = selectedFiles.length;
+  const chunks = Math.floor(Math.random() * 80) + n * 30;
+
+  setTimeout(() => {
+    spin.classList.remove('active');
+    btn.disabled = false;
+    msg.innerHTML = `<div class="alert alert-success mt8">✅ ${chunks} chunk(s) gravados com sucesso.</div>`;
+
+    // Adiciona à tabela
+    const tbody = document.querySelector('#tblPdfs tbody');
+    selectedFiles.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${f.name}</td>`;
+      tbody.appendChild(tr);
+
+      const opt = document.createElement('option');
+      opt.textContent = f.name;
+      document.getElementById('selPdf').appendChild(opt);
+    });
+
+    const total = tbody.querySelectorAll('tr').length;
+    document.getElementById('captionPdfs').textContent = `Total: ${total} arquivo(s) no banco`;
+    selectedFiles = [];
+    renderFileList();
+  }, 2200);
+}
+
+/* ── Apagar PDF ────────────────────────────────────────────── */
+function apagarSel() {
+  const sel  = document.getElementById('selPdf');
+  const nome = sel.value;
+  if (!nome) return;
+
+  const tbody = document.querySelector('#tblPdfs tbody');
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (tr.cells[0].textContent === nome) tr.remove();
+  });
+  sel.querySelector(`option[value="${nome}"]`)?.remove();
+  sel.remove(); // rebuild
+  rebuildSelect();
+
+  const total = tbody.querySelectorAll('tr').length;
+  document.getElementById('captionPdfs').textContent = `Total: ${total} arquivo(s) no banco`;
+  document.getElementById('pdfMsg').innerHTML = `<div class="alert alert-success mt8">✅ Chunks de '${nome}' removidos.</div>`;
+}
+
+function rebuildSelect() {
+  const tbody  = document.querySelector('#tblPdfs tbody');
+  const parent = document.getElementById('selPdf').parentNode;
+  const sel    = document.createElement('select');
+  sel.id = 'selPdf';
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const opt = document.createElement('option');
+    opt.textContent = tr.cells[0].textContent;
+    sel.appendChild(opt);
+  });
+  parent.insertBefore(sel, parent.querySelector('.mt8'));
+  parent.removeChild(parent.querySelector('select:not(#selPdf)'));
+}
+
+function apagarTodos() {
+  document.querySelector('#tblPdfs tbody').innerHTML = '';
+  const sel = document.getElementById('selPdf');
+  sel.innerHTML = '';
+  document.getElementById('captionPdfs').textContent = 'Total: 0 arquivo(s) no banco';
+  document.getElementById('chkConfirm').checked = false;
+  document.getElementById('btnApagarTodos').disabled = true;
+  document.getElementById('pdfMsg').innerHTML = `<div class="alert alert-success mt8">✅ Todos os chunks removidos. Banco vazio.</div>`;
+}
+
+/* ── RAG search ────────────────────────────────────────────── */
+const respostasRag = {
+  default: `Com base nos documentos analisados, o prazo de entrega dos serviços contratados é de **30 dias corridos** a partir da assinatura do contrato.\n\nEm caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato, conforme Cláusula 8ª do instrumento.`,
+  cache:   `Com base nos documentos analisados, o prazo de entrega dos serviços contratados é de **30 dias corridos** a partir da assinatura do contrato. [CACHE]`,
+};
+
+let ragTimeout;
+
+function onRagInput() {
+  const v = document.getElementById('inputRag').value.trim();
+  document.getElementById('btnBuscar').disabled = !v;
+
+  // Simula detecção de cache para perguntas específicas
+  const cacheHit = v.toLowerCase().includes('prazo');
+  document.getElementById('cacheHitRag').classList.toggle('hidden', !cacheHit);
+  document.getElementById('resultadoRag').classList.add('hidden');
+}
+
+function buscarRag() {
+  const pergunta = document.getElementById('inputRag').value.trim();
+  if (!pergunta) return;
+
+  const usarCache = !document.getElementById('cacheHitRag').classList.contains('hidden')
+    && document.querySelector('input[name="acaoRag"]:checked')?.value === 'usar';
+
+  const spin   = document.getElementById('spinRag');
+  const spinTxt= document.getElementById('spinRagTxt');
+  const btn    = document.getElementById('btnBuscar');
+  btn.disabled = true;
+
+  if (usarCache) {
+    spin.classList.add('active');
+    spinTxt.textContent = 'Carregando resposta do cache…';
+    setTimeout(() => exibirRespostaRag(pergunta, respostasRag.cache, true), 600);
+  } else {
+    spin.classList.add('active');
+    spinTxt.textContent = 'Buscando nos documentos…';
+    setTimeout(() => {
+      spinTxt.textContent = 'Gerando resposta com o LLM…';
+      setTimeout(() => exibirRespostaRag(pergunta, respostasRag.default, false), 1400);
+    }, 1200);
+  }
+}
+
+function exibirRespostaRag(pergunta, resposta, cache) {
+  document.getElementById('spinRag').classList.remove('active');
+  document.getElementById('btnBuscar').disabled = false;
+
+  document.getElementById('perguntaRagExib').textContent = pergunta;
+  document.getElementById('respostaRag').textContent = resposta;
+  document.getElementById('tituloRag').textContent = cache ? 'Resposta (cache)' : 'Resposta';
+  document.getElementById('resultadoRag').classList.remove('hidden');
+  document.getElementById('chkChunks').checked = false;
+  document.getElementById('chunksArea').classList.add('hidden');
+}
+
+function toggleChunks() {
+  document.getElementById('chunksArea').classList.toggle('hidden',
+    !document.getElementById('chkChunks').checked);
+}
+
+/* ── Web search ────────────────────────────────────────────── */
+const respostasWeb = {
+  default: `Hoje, 14/04/2026, o dólar americano (USD) está cotado a R$ 5,78 na compra e R$ 5,81 na venda, de acordo com o Banco Central do Brasil.\n\nA moeda americana acumula alta de 1,2% na semana, impulsionada por tensões no cenário internacional e dados de inflação acima do esperado nos EUA.`,
+  generica: `Com base nas informações mais recentes disponíveis na internet, aqui está a resposta para sua pergunta.\n\nEsta resposta foi gerada pelo Gemini com Google Search grounding, utilizando fontes verificadas e atualizadas em tempo real.`,
+};
+
+function onWebInput() {
+  const v = document.getElementById('inputWeb').value.trim();
+  document.getElementById('btnBuscarWeb').disabled = !v;
+
+  const cacheHit = v.toLowerCase().includes('dólar') || v.toLowerCase().includes('dolar');
+  document.getElementById('cacheHitWeb').classList.toggle('hidden', !cacheHit);
+  document.getElementById('resultadoWeb').classList.add('hidden');
+}
+
+function buscarWeb() {
+  const pergunta = document.getElementById('inputWeb').value.trim();
+  if (!pergunta) return;
+
+  const usarCache = !document.getElementById('cacheHitWeb').classList.contains('hidden')
+    && document.querySelector('input[name="acaoWeb"]:checked')?.value === 'usar';
+
+  const spin = document.getElementById('spinWeb');
+  const btn  = document.getElementById('btnBuscarWeb');
+  btn.disabled = true;
+  spin.classList.add('active');
+
+  const tempoMs = usarCache ? 500 : 2500;
+  const isDolar = pergunta.toLowerCase().includes('dólar') || pergunta.toLowerCase().includes('dolar');
+  const resp    = isDolar ? respostasWeb.default : respostasWeb.generica;
+
+  setTimeout(() => {
+    spin.classList.remove('active');
+    btn.disabled = false;
+    document.getElementById('perguntaWebExib').textContent = pergunta;
+    document.getElementById('respostaWeb').textContent = resp;
+    document.getElementById('resultadoWeb').classList.remove('hidden');
+  }, tempoMs);
+}
+
+/* ── Histórico filter ──────────────────────────────────────── */
+function filtrarHist() {
+  const q = document.getElementById('filtroHist').value.toLowerCase();
+  const items = document.querySelectorAll('#histLista .hist-item');
+  let visiveis = 0;
+
+  items.forEach(item => {
+    const txt = item.getAttribute('data-texto') || '';
+    const match = !q || txt.includes(q);
+    item.style.display = match ? '' : 'none';
+    if (match) visiveis++;
+  });
+
+  document.getElementById('histVazio').classList.toggle('hidden', visiveis > 0);
+}
+
+/* ── Apagar registro do histórico ─────────────────────────── */
+function apagarRegistro(btn) {
+  const item = btn.closest('.hist-item');
+  item.style.transition = 'opacity .3s';
+  item.style.opacity = '0';
+  setTimeout(() => item.remove(), 300);
+}
+
+/* ── Download PDF (simulado) ───────────────────────────────── */
+function downloadPdf(tipo) {
+  const el = document.createElement('div');
+  el.className = 'alert alert-success';
+  el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;animation:fadeIn .3s;min-width:260px;';
+  el.innerHTML = '📄 PDF gerado! Download iniciado.';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+</script>
+
+</body>
+</html>
