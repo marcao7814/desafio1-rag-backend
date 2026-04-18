@@ -172,6 +172,25 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .col2{flex:2}
 .col3{flex:3}
 
+/* ── Fonte toggle ── */
+.fonte-selector{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:16px}
+.fonte-btn{flex:1;padding:10px;border:none;background:var(--surface2);color:var(--muted);
+  cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;transition:background .15s,color .15s}
+.fonte-btn.active{background:rgba(79,142,247,.15);color:var(--blue);font-weight:600}
+.fonte-btn:first-child{border-right:1px solid var(--border)}
+
+/* ── PDF list ── */
+.pdf-list{display:flex;flex-direction:column;gap:8px}
+.pdf-item{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;
+  transition:border-color .15s}
+.pdf-item:hover{border-color:var(--blue)}
+.pdf-item input[type=checkbox]{accent-color:var(--blue);width:15px;height:15px;cursor:pointer}
+.pdf-item .pdf-name{flex:1;font-size:13px}
+.pdf-item .pdf-chunks{font-size:11px;color:var(--muted);background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;padding:1px 8px;font-family:monospace}
+.pdf-count-badge{font-size:12px;color:var(--blue);font-weight:600}
+
 /* ── Toast ── */
 .toast{position:fixed;bottom:24px;right:24px;z-index:9999;
   background:#0d3321;border-left:4px solid var(--green);color:#7deba0;
@@ -206,8 +225,7 @@ strong{color:#e0e0ff}.hidden{display:none!important}
 <!-- ── Tab bar ─────────────────────────────────────────── -->
 <nav class="tab-bar">
   <button class="tab-btn active" onclick="showTab('pdfs',this)">📂 PDFs</button>
-  <button class="tab-btn" onclick="showTab('rag',this)">🔍 Busca RAG</button>
-  <button class="tab-btn" onclick="showTab('web',this)">🌐 Internet</button>
+  <button class="tab-btn" onclick="showTab('busca',this)">🔍 Busca</button>
   <button class="tab-btn" onclick="showTab('verif',this)">🚫 Verificação</button>
   <button class="tab-btn" onclick="showTab('histverif',this)">🗂 Hist. Verificação</button>
   <button class="tab-btn" onclick="showTab('hist',this)">📋 Hist. Perguntas</button>
@@ -282,33 +300,75 @@ strong{color:#e0e0ff}.hidden{display:none!important}
     </div>
   </div>
 
-  <!-- ════ ABA 2 — Busca RAG ════ -->
-  <div id="tab-rag" class="tab-panel">
-    <div class="page-title">🔍 Busca / Consulta RAG</div>
-    <div class="page-desc">Faça perguntas sobre os documentos ingeridos. Respostas baseadas exclusivamente no conteúdo dos PDFs.</div>
+  <!-- ════ ABA 2 — Busca (RAG + Internet unificado) ════ -->
+  <div id="tab-busca" class="tab-panel">
+    <div class="page-title">🔍 Busca</div>
+    <div class="page-desc">Pesquise nos documentos ingeridos (RAG) ou na internet via Gemini com Google Search.</div>
 
+    <!-- Selector de fonte -->
+    <div class="card" style="padding:16px 20px">
+      <div class="card-title" style="margin-bottom:10px">Fonte de busca</div>
+      <div class="fonte-selector">
+        <button class="fonte-btn active" id="btnFonteRag" onclick="setFonte('rag')">📄 Documentos (RAG)</button>
+        <button class="fonte-btn" id="btnFonteWeb" onclick="setFonte('web')">🌐 Internet (Gemini)</button>
+      </div>
+
+      <!-- Aviso custo Web -->
+      <div id="avisoWeb" class="hidden">
+        <div class="alert alert-info" style="margin-bottom:0">🌐 Respostas em tempo real via Gemini com Google Search grounding. Custo extra: ~$0,035/busca.</div>
+      </div>
+
+      <!-- PDFs disponíveis para RAG -->
+      <div id="ragPdfsPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <label class="lbl" style="margin:0">PDFs disponíveis para a busca</label>
+          <span class="pdf-count-badge" id="pdfsSelCount">3 selecionados</span>
+        </div>
+        <div class="pdf-list">
+          <label class="pdf-item">
+            <input type="checkbox" checked onchange="updatePdfCount()"/>
+            <span class="pdf-name">📄 relatorio_anual_2023.pdf</span>
+            <span class="pdf-chunks">142 chunks</span>
+          </label>
+          <label class="pdf-item">
+            <input type="checkbox" checked onchange="updatePdfCount()"/>
+            <span class="pdf-name">📄 contrato_prestacao_servicos.pdf</span>
+            <span class="pdf-chunks">87 chunks</span>
+          </label>
+          <label class="pdf-item">
+            <input type="checkbox" checked onchange="updatePdfCount()"/>
+            <span class="pdf-name">📄 manual_operacoes.pdf</span>
+            <span class="pdf-chunks">203 chunks</span>
+          </label>
+        </div>
+        <div class="caption mt8" id="noPdfWarn" style="color:var(--red);display:none">⚠ Selecione ao menos um PDF para realizar a busca.</div>
+      </div>
+    </div>
+
+    <!-- Formulário de pergunta -->
     <div class="card">
-      <label class="lbl">Sua pergunta</label>
-      <input type="text" id="inputRag" placeholder="Ex.: Qual é o prazo de entrega do contrato?" oninput="onRagIn()"/>
+      <label class="lbl" id="lblPergunta">Sua pergunta sobre os documentos</label>
+      <input type="text" id="inputBusca" placeholder="Ex.: Qual é o prazo de entrega do contrato?" oninput="onBuscaIn()"/>
 
-      <div id="cacheRag" class="hidden">
+      <div id="cacheBusca" class="hidden">
         <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>14/04/2026 09:31</strong>. Nenhum token será gerado.</div>
         <div class="radio-group mt8">
-          <label><input type="radio" name="acaoRag" value="usar" checked/> Usar resposta salva</label>
-          <label><input type="radio" name="acaoRag" value="ref"/> Refazer (gera tokens)</label>
+          <label><input type="radio" name="acaoBusca" value="usar" checked/> Usar resposta salva</label>
+          <label><input type="radio" name="acaoBusca" value="ref"/> Refazer (gera tokens)</label>
         </div>
       </div>
 
       <div class="flex gap8 mt12">
-        <button class="btn btn-primary" id="btnRag" onclick="buscarRag()" disabled>🔍 Buscar</button>
+        <button class="btn btn-primary" id="btnBusca" onclick="buscar()" disabled>🔍 Buscar</button>
       </div>
-      <div class="spin-row mt8" id="spinRag"><div class="spinner"></div><span id="spinRagTxt">Buscando nos documentos…</span></div>
+      <div class="spin-row mt8" id="spinBusca"><div class="spinner"></div><span id="spinBuscaTxt">Buscando nos documentos…</span></div>
     </div>
 
-    <div id="resRag" class="hidden">
+    <!-- Resultado RAG -->
+    <div id="resBuscaRag" class="hidden">
       <div class="card">
-        <div class="card-title" id="titleRag">Resposta</div>
-        <div class="resp-box" id="txtRag"></div>
+        <div class="card-title">Resposta <span class="badge-rag" style="margin-left:8px">📄 RAG</span></div>
+        <div class="resp-box" id="txtBuscaRag"></div>
 
         <div class="mt12">
           <label class="check-label"><input type="checkbox" id="chkChunks" onchange="toggleChunks()"/> Mostrar chunks recuperados</label>
@@ -323,35 +383,12 @@ strong{color:#e0e0ff}.hidden{display:none!important}
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ════ ABA 3 — Internet ════ -->
-  <div id="tab-web" class="tab-panel">
-    <div class="page-title">🌐 Busca na Internet</div>
-    <div class="page-desc">Perguntas respondidas pelo Gemini com Google Search em tempo real. Custo extra: ~$0,035/busca.</div>
-
-    <div class="card">
-      <label class="lbl">Sua pergunta</label>
-      <input type="text" id="inputWeb" placeholder="Ex.: Qual é a cotação do dólar hoje?" oninput="onWebIn()"/>
-
-      <div id="cacheWeb" class="hidden">
-        <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>13/04/2026 17:45</strong>.</div>
-        <div class="radio-group mt8">
-          <label><input type="radio" name="acaoWeb" value="usar" checked/> Usar resposta salva</label>
-          <label><input type="radio" name="acaoWeb" value="ref"/> Refazer (gera tokens)</label>
-        </div>
-      </div>
-
-      <div class="flex gap8 mt12">
-        <button class="btn btn-primary" id="btnWeb" onclick="buscarWeb()" disabled>🌐 Buscar na Internet</button>
-      </div>
-      <div class="spin-row mt8" id="spinWeb"><div class="spinner"></div> Buscando na internet…</div>
-    </div>
-
-    <div id="resWeb" class="hidden">
+    <!-- Resultado Web -->
+    <div id="resBuscaWeb" class="hidden">
       <div class="card">
-        <div class="card-title">Resposta</div>
-        <div class="resp-box" id="txtWeb"></div>
+        <div class="card-title">Resposta <span class="badge-web" style="margin-left:8px">🌐 Internet</span></div>
+        <div class="resp-box" id="txtBuscaWeb"></div>
 
         <div class="card mt12" style="padding:14px">
           <div class="card-title" style="margin-bottom:10px">🔗 Fontes utilizadas</div>
@@ -364,7 +401,7 @@ strong{color:#e0e0ff}.hidden{display:none!important}
     </div>
   </div>
 
-  <!-- ════ ABA 4 — Verificação ════ -->
+  <!-- ════ ABA 3 — Verificação ════ -->
   <div id="tab-verif" class="tab-panel">
     <div class="page-title">🚫 Verificação de Conteúdo</div>
     <div class="page-desc">Verifique se os chunks gravados contêm conteúdo proibido por busca exata (SQL) ou moderação por LLM.</div>
@@ -436,7 +473,7 @@ linguagem ofensiva</textarea>
     </div>
   </div>
 
-  <!-- ════ ABA 5 — Hist. Verificação ════ -->
+  <!-- ════ ABA 4 — Hist. Verificação ════ -->
   <div id="tab-histverif" class="tab-panel">
     <div class="page-title">🗂 Histórico de Verificações</div>
     <div class="page-desc">Todas as verificações de conteúdo realizadas, com status e opção de revisão manual.</div>
@@ -498,7 +535,7 @@ linguagem ofensiva</textarea>
     </div>
   </div>
 
-  <!-- ════ ABA 6 — Hist. Perguntas ════ -->
+  <!-- ════ ABA 5 — Hist. Perguntas ════ -->
   <div id="tab-hist" class="tab-panel">
     <div class="page-title">📋 Histórico de Perguntas</div>
     <div class="page-desc">Todas as perguntas respondidas, RAG e busca web, com opção de download e exclusão.</div>
@@ -616,49 +653,93 @@ function ingerir() {
   }, 2000);
 }
 function apagarSel() { toast('Chunks removidos com sucesso.'); }
-function apagarTodos() { document.querySelector('#tblPdfs tbody').innerHTML = ''; document.getElementById('totalPdfs').textContent='0 arquivos'; document.getElementById('chkAll').checked=false; document.getElementById('btnAll').disabled=true; toast('Banco limpo.'); }
-
-/* ── RAG ── */
-function onRagIn() {
-  const v = document.getElementById('inputRag').value.trim();
-  document.getElementById('btnRag').disabled = !v;
-  document.getElementById('cacheRag').classList.toggle('hidden', !v.toLowerCase().includes('prazo'));
-  if (!v) document.getElementById('resRag').classList.add('hidden');
+function apagarTodos() {
+  document.querySelector('#tblPdfs tbody').innerHTML = '';
+  document.getElementById('totalPdfs').textContent='0 arquivos';
+  document.getElementById('chkAll').checked=false;
+  document.getElementById('btnAll').disabled=true;
+  toast('Banco limpo.');
 }
-function buscarRag() {
-  const p = document.getElementById('inputRag').value.trim();
-  const btn = document.getElementById('btnRag'); btn.disabled = true;
-  const spin = document.getElementById('spinRag'); spin.classList.add('on');
-  document.getElementById('spinRagTxt').textContent = 'Buscando nos documentos…';
-  setTimeout(() => {
-    document.getElementById('spinRagTxt').textContent = 'Gerando resposta com o LLM…';
+
+/* ── Fonte selector (RAG / Web) ── */
+let fonteAtual = 'rag';
+function setFonte(f) {
+  fonteAtual = f;
+  document.getElementById('btnFonteRag').classList.toggle('active', f==='rag');
+  document.getElementById('btnFonteWeb').classList.toggle('active', f==='web');
+  document.getElementById('ragPdfsPanel').classList.toggle('hidden', f!=='rag');
+  document.getElementById('avisoWeb').classList.toggle('hidden', f!=='web');
+  document.getElementById('lblPergunta').textContent = f==='rag'
+    ? 'Sua pergunta sobre os documentos'
+    : 'Sua pergunta (respondida com busca na internet)';
+  document.getElementById('inputBusca').placeholder = f==='rag'
+    ? 'Ex.: Qual é o prazo de entrega do contrato?'
+    : 'Ex.: Qual é a cotação do dólar hoje?';
+  // reset results
+  document.getElementById('resBuscaRag').classList.add('hidden');
+  document.getElementById('resBuscaWeb').classList.add('hidden');
+  document.getElementById('cacheBusca').classList.add('hidden');
+  document.getElementById('inputBusca').value = '';
+  document.getElementById('btnBusca').disabled = true;
+}
+
+/* ── PDF count ── */
+function updatePdfCount() {
+  const boxes = document.querySelectorAll('#ragPdfsPanel input[type=checkbox]');
+  const sel = Array.from(boxes).filter(b=>b.checked).length;
+  document.getElementById('pdfsSelCount').textContent = sel + ' selecionado' + (sel!==1?'s':'');
+  document.getElementById('noPdfWarn').style.display = sel===0 ? 'block' : 'none';
+  const v = document.getElementById('inputBusca').value.trim();
+  document.getElementById('btnBusca').disabled = !v || sel===0;
+}
+
+/* ── Busca unificada ── */
+function onBuscaIn() {
+  const v = document.getElementById('inputBusca').value.trim();
+  const boxes = document.querySelectorAll('#ragPdfsPanel input[type=checkbox]');
+  const sel = Array.from(boxes).filter(b=>b.checked).length;
+  const pdfOk = fonteAtual==='web' || sel>0;
+  document.getElementById('btnBusca').disabled = !v || !pdfOk;
+  // cache hint simulation
+  const cacheKw = fonteAtual==='rag' ? 'prazo' : (v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar'));
+  const showCache = fonteAtual==='rag' ? v.toLowerCase().includes('prazo') : (v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar'));
+  document.getElementById('cacheBusca').classList.toggle('hidden', !showCache);
+  if (!v) {
+    document.getElementById('resBuscaRag').classList.add('hidden');
+    document.getElementById('resBuscaWeb').classList.add('hidden');
+  }
+}
+
+function buscar() {
+  const btn = document.getElementById('btnBusca'); btn.disabled = true;
+  const spin = document.getElementById('spinBusca'); spin.classList.add('on');
+  document.getElementById('resBuscaRag').classList.add('hidden');
+  document.getElementById('resBuscaWeb').classList.add('hidden');
+
+  if (fonteAtual === 'rag') {
+    document.getElementById('spinBuscaTxt').textContent = 'Buscando nos documentos…';
+    setTimeout(() => {
+      document.getElementById('spinBuscaTxt').textContent = 'Gerando resposta com o LLM…';
+      setTimeout(() => {
+        spin.classList.remove('on'); btn.disabled = false;
+        document.getElementById('txtBuscaRag').textContent = 'Com base nos documentos analisados, o prazo de entrega é de 30 dias corridos a partir da assinatura do contrato. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato.';
+        document.getElementById('resBuscaRag').classList.remove('hidden');
+        document.getElementById('chkChunks').checked = false;
+        document.getElementById('chunksArea').classList.add('hidden');
+      }, 1300);
+    }, 1100);
+  } else {
+    document.getElementById('spinBuscaTxt').textContent = 'Buscando na internet via Gemini…';
     setTimeout(() => {
       spin.classList.remove('on'); btn.disabled = false;
-      document.getElementById('txtRag').textContent = 'Com base nos documentos analisados, o prazo de entrega é de 30 dias corridos a partir da assinatura do contrato. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato.';
-      document.getElementById('titleRag').textContent = 'Resposta';
-      document.getElementById('resRag').classList.remove('hidden');
-      document.getElementById('chkChunks').checked = false;
-      document.getElementById('chunksArea').classList.add('hidden');
-    }, 1300);
-  }, 1100);
+      document.getElementById('txtBuscaWeb').textContent = 'Hoje, 14/04/2026, o dólar está cotado a R$ 5,78 na compra e R$ 5,81 na venda. A moeda acumula alta de 1,2% na semana, impulsionada por tensões internacionais.';
+      document.getElementById('resBuscaWeb').classList.remove('hidden');
+    }, 2200);
+  }
 }
-function toggleChunks() { document.getElementById('chunksArea').classList.toggle('hidden', !document.getElementById('chkChunks').checked); }
 
-/* ── Web ── */
-function onWebIn() {
-  const v = document.getElementById('inputWeb').value.trim();
-  document.getElementById('btnWeb').disabled = !v;
-  document.getElementById('cacheWeb').classList.toggle('hidden', !(v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar')));
-  if (!v) document.getElementById('resWeb').classList.add('hidden');
-}
-function buscarWeb() {
-  const btn = document.getElementById('btnWeb'); btn.disabled = true;
-  const spin = document.getElementById('spinWeb'); spin.classList.add('on');
-  setTimeout(() => {
-    spin.classList.remove('on'); btn.disabled = false;
-    document.getElementById('txtWeb').textContent = 'Hoje, 14/04/2026, o dólar está cotado a R$ 5,78 na compra e R$ 5,81 na venda. A moeda acumula alta de 1,2% na semana, impulsionada por tensões internacionais.';
-    document.getElementById('resWeb').classList.remove('hidden');
-  }, 2200);
+function toggleChunks() {
+  document.getElementById('chunksArea').classList.toggle('hidden', !document.getElementById('chkChunks').checked);
 }
 
 /* ── Verificação ── */

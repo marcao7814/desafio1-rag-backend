@@ -175,6 +175,25 @@ input[type=radio],input[type=checkbox]{accent-color:var(--blue);width:14px;heigh
 .spin-row{display:none;align-items:center;gap:10px;padding:8px 0;color:var(--muted);font-size:13px}
 .spin-row.on{display:flex}
 
+/* ── Fonte toggle ── */
+.fonte-selector{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:16px}
+.fonte-btn{flex:1;padding:10px;border:none;background:var(--surface2);color:var(--muted);
+  cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;transition:background .15s,color .15s}
+.fonte-btn.active{background:rgba(79,142,247,.15);color:var(--blue);font-weight:600}
+.fonte-btn:first-child{border-right:1px solid var(--border)}
+
+/* ── PDF list ── */
+.pdf-list{display:flex;flex-direction:column;gap:8px}
+.pdf-item{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;
+  transition:border-color .15s}
+.pdf-item:hover{border-color:var(--blue)}
+.pdf-item input[type=checkbox]{accent-color:var(--blue);width:15px;height:15px;cursor:pointer}
+.pdf-item .pdf-name{flex:1;font-size:13px}
+.pdf-item .pdf-chunks{font-size:11px;color:var(--muted);background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;padding:1px 8px;font-family:monospace}
+.pdf-count-badge{font-size:12px;color:var(--blue);font-weight:600}
+
 /* ── Grid ── */
 .row{display:flex;gap:14px}.col{flex:1}.col2{flex:2}.col3{flex:3}
 hr{border:none;border-top:1px solid var(--border);margin:14px 0}
@@ -240,11 +259,8 @@ strong{color:#e0e0ff}.hidden{display:none!important}
 
     <div class="nav-divider"></div>
     <div class="nav-group-label">Busca</div>
-    <div class="nav-item" onclick="go('rag',this)">
-      <span class="icon">🔍</span> Busca RAG
-    </div>
-    <div class="nav-item" onclick="go('web',this)">
-      <span class="icon">🌐</span> Busca na Internet
+    <div class="nav-item" onclick="go('busca',this)">
+      <span class="icon">🔍</span> Busca
     </div>
 
     <div class="nav-divider"></div>
@@ -339,39 +355,84 @@ strong{color:#e0e0ff}.hidden{display:none!important}
       </div>
     </div>
 
-    <!-- ════ RAG ════ -->
-    <div id="panel-rag" class="panel">
-      <div class="breadcrumb"><span>Busca</span><span class="sep">›</span><span class="cur">Busca RAG</span></div>
+    <!-- ════ Busca (RAG + Internet unificado) ════ -->
+    <div id="panel-busca" class="panel">
+      <div class="breadcrumb"><span>Busca</span><span class="sep">›</span><span class="cur">Busca</span></div>
       <div class="page-head">
-        <h1>🔍 Busca / Consulta RAG</h1>
-        <p>Perguntas respondidas com base exclusivamente no conteúdo dos PDFs ingeridos.</p>
+        <h1>🔍 Busca</h1>
+        <p>Pesquise nos documentos ingeridos (RAG) ou na internet via Gemini com Google Search.</p>
       </div>
 
-      <div class="card">
-        <label class="lbl">Sua pergunta sobre os documentos</label>
-        <input type="text" id="iRag" placeholder="Ex.: Qual é o prazo de entrega do contrato?" oninput="onRag()"/>
+      <!-- Fonte selector -->
+      <div class="card" style="padding:16px 20px">
+        <div class="card-title" style="margin-bottom:10px">Fonte de busca</div>
+        <div class="fonte-selector">
+          <button class="fonte-btn active" id="mBtnRag" onclick="setFonteM('rag')">📄 Documentos (RAG)</button>
+          <button class="fonte-btn" id="mBtnWeb" onclick="setFonteM('web')">🌐 Internet (Gemini)</button>
+        </div>
 
-        <div id="cR" class="hidden">
+        <!-- Aviso Web -->
+        <div id="mAvisoWeb" class="hidden">
+          <div class="alert alert-info" style="margin-bottom:0">🌐 Respostas em tempo real via Gemini com Google Search grounding. Custo extra: ~$0,035/busca.</div>
+        </div>
+
+        <!-- PDFs disponíveis para RAG -->
+        <div id="mRagPdfs">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <label class="lbl" style="margin:0">PDFs disponíveis para a busca</label>
+            <span class="pdf-count-badge" id="mPdfsSelCount">3 selecionados</span>
+          </div>
+          <div class="pdf-list">
+            <label class="pdf-item">
+              <input type="checkbox" checked onchange="updateMPdfCount()"/>
+              <span class="pdf-name">📄 relatorio_anual_2023.pdf</span>
+              <span class="pdf-chunks">142 chunks</span>
+            </label>
+            <label class="pdf-item">
+              <input type="checkbox" checked onchange="updateMPdfCount()"/>
+              <span class="pdf-name">📄 contrato_prestacao_servicos.pdf</span>
+              <span class="pdf-chunks">87 chunks</span>
+            </label>
+            <label class="pdf-item">
+              <input type="checkbox" checked onchange="updateMPdfCount()"/>
+              <span class="pdf-name">📄 manual_operacoes.pdf</span>
+              <span class="pdf-chunks">203 chunks</span>
+            </label>
+          </div>
+          <div class="caption mt8" id="mNoPdfWarn" style="color:var(--red);display:none">⚠ Selecione ao menos um PDF para realizar a busca.</div>
+        </div>
+      </div>
+
+      <!-- Formulário -->
+      <div class="card">
+        <label class="lbl" id="mLblPerg">Sua pergunta sobre os documentos</label>
+        <input type="text" id="mInput" placeholder="Ex.: Qual é o prazo de entrega do contrato?" oninput="onMIn()"/>
+
+        <div id="mCache" class="hidden">
           <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>14/04/2026 09:31</strong>. Nenhum token será gerado.</div>
           <div class="radio-group mt8">
-            <label><input type="radio" name="acR" value="u" checked/> Usar resposta salva</label>
-            <label><input type="radio" name="acR" value="r"/> Refazer (gera tokens)</label>
+            <label><input type="radio" name="acM" value="u" checked/> Usar resposta salva</label>
+            <label><input type="radio" name="acM" value="r"/> Refazer (gera tokens)</label>
           </div>
         </div>
+
         <div class="flex gap8 mt12">
-          <button class="btn btn-primary" id="bRag" onclick="buscaRag()" disabled>🔍 Buscar</button>
+          <button class="btn btn-primary" id="mBtn" onclick="mBuscar()" disabled>🔍 Buscar</button>
         </div>
-        <div class="spin-row mt8" id="sRag"><div class="spinner"></div><span id="sRagTxt">Buscando…</span></div>
+        <div class="spin-row mt8" id="mSpin"><div class="spinner"></div><span id="mSpinTxt">Buscando…</span></div>
       </div>
 
-      <div id="rRag" class="hidden">
+      <!-- Resultado RAG -->
+      <div id="mResRag" class="hidden">
         <div class="card">
-          <div class="card-head"><div class="card-title" id="tRag">Resposta</div></div>
-          <div class="resp-box" id="txRag"></div>
-          <div class="mt12">
-            <label class="check-label"><input type="checkbox" id="chkC" onchange="toggleC()"/> Mostrar chunks recuperados</label>
+          <div class="card-head">
+            <div class="card-title">Resposta <span class="badge b-rag" style="margin-left:8px">📄 RAG</span></div>
           </div>
-          <div id="cArea" class="hidden mt8">
+          <div class="resp-box" id="mTxRag"></div>
+          <div class="mt12">
+            <label class="check-label"><input type="checkbox" id="mChkC" onchange="toggleMC()"/> Mostrar chunks recuperados</label>
+          </div>
+          <div id="mCArea" class="hidden mt8">
             <div class="chunk"><div class="chunk-meta"><strong>[1]</strong> Score: <span class="tag">0.1342</span> &nbsp; contrato_prestacao_servicos.pdf &nbsp; Pág. 4</div><div style="font-style:italic;color:#cdd;font-size:12.5px">"O prazo de entrega é de 30 dias corridos…"</div></div>
             <div class="chunk"><div class="chunk-meta"><strong>[2]</strong> Score: <span class="tag">0.2187</span> &nbsp; contrato_prestacao_servicos.pdf &nbsp; Pág. 7</div><div style="font-style:italic;color:#cdd;font-size:12.5px">"Em caso de atraso, multa de 0,5% por dia útil…"</div></div>
           </div>
@@ -380,37 +441,14 @@ strong{color:#e0e0ff}.hidden{display:none!important}
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ════ Web ════ -->
-    <div id="panel-web" class="panel">
-      <div class="breadcrumb"><span>Busca</span><span class="sep">›</span><span class="cur">Busca na Internet</span></div>
-      <div class="page-head">
-        <h1>🌐 Busca na Internet</h1>
-        <p>Respostas em tempo real via Gemini com Google Search grounding. Custo extra: ~$0,035/busca.</p>
-      </div>
-
-      <div class="card">
-        <label class="lbl">Sua pergunta</label>
-        <input type="text" id="iWeb" placeholder="Ex.: Qual é a cotação do dólar hoje?" oninput="onWeb()"/>
-
-        <div id="cW" class="hidden">
-          <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>13/04/2026 17:45</strong>.</div>
-          <div class="radio-group mt8">
-            <label><input type="radio" name="acW" value="u" checked/> Usar resposta salva</label>
-            <label><input type="radio" name="acW" value="r"/> Refazer (gera tokens)</label>
-          </div>
-        </div>
-        <div class="flex gap8 mt12">
-          <button class="btn btn-primary" id="bWeb" onclick="buscaWeb()" disabled>🌐 Buscar na Internet</button>
-        </div>
-        <div class="spin-row mt8" id="sWeb"><div class="spinner"></div> Buscando na internet…</div>
-      </div>
-
-      <div id="rWeb" class="hidden">
+      <!-- Resultado Web -->
+      <div id="mResWeb" class="hidden">
         <div class="card">
-          <div class="card-head"><div class="card-title">Resposta</div></div>
-          <div class="resp-box" id="txWeb"></div>
+          <div class="card-head">
+            <div class="card-title">Resposta <span class="badge b-web" style="margin-left:8px">🌐 Internet</span></div>
+          </div>
+          <div class="resp-box" id="mTxWeb"></div>
 
           <div style="margin-top:16px">
             <div class="card-title mb8">🔗 Fontes utilizadas</div>
@@ -705,47 +743,79 @@ function ingerir() {
 }
 function apagarTodos2() { document.getElementById('tblBody').innerHTML=''; toast('Banco limpo.'); }
 
-/* ── RAG ── */
-function onRag() {
-  const v = document.getElementById('iRag').value.trim();
-  document.getElementById('bRag').disabled = !v;
-  document.getElementById('cR').classList.toggle('hidden', !v.toLowerCase().includes('prazo'));
-  if (!v) document.getElementById('rRag').classList.add('hidden');
+/* ── Fonte selector (Menu) ── */
+let mFonte = 'rag';
+function setFonteM(f) {
+  mFonte = f;
+  document.getElementById('mBtnRag').classList.toggle('active', f==='rag');
+  document.getElementById('mBtnWeb').classList.toggle('active', f==='web');
+  document.getElementById('mRagPdfs').classList.toggle('hidden', f!=='rag');
+  document.getElementById('mAvisoWeb').classList.toggle('hidden', f!=='web');
+  document.getElementById('mLblPerg').textContent = f==='rag'
+    ? 'Sua pergunta sobre os documentos'
+    : 'Sua pergunta (respondida com busca na internet)';
+  document.getElementById('mInput').placeholder = f==='rag'
+    ? 'Ex.: Qual é o prazo de entrega do contrato?'
+    : 'Ex.: Qual é a cotação do dólar hoje?';
+  document.getElementById('mResRag').classList.add('hidden');
+  document.getElementById('mResWeb').classList.add('hidden');
+  document.getElementById('mCache').classList.add('hidden');
+  document.getElementById('mInput').value = '';
+  document.getElementById('mBtn').disabled = true;
 }
-function buscaRag() {
-  const btn = document.getElementById('bRag'); btn.disabled = true;
-  const spin = document.getElementById('sRag'); spin.classList.add('on');
-  document.getElementById('sRagTxt').textContent = 'Buscando nos documentos…';
-  setTimeout(() => {
-    document.getElementById('sRagTxt').textContent = 'Gerando resposta com o LLM…';
+
+function updateMPdfCount() {
+  const boxes = document.querySelectorAll('#mRagPdfs input[type=checkbox]');
+  const sel = Array.from(boxes).filter(b=>b.checked).length;
+  document.getElementById('mPdfsSelCount').textContent = sel + ' selecionado' + (sel!==1?'s':'');
+  document.getElementById('mNoPdfWarn').style.display = sel===0 ? 'block' : 'none';
+  const v = document.getElementById('mInput').value.trim();
+  document.getElementById('mBtn').disabled = !v || sel===0;
+}
+
+function onMIn() {
+  const v = document.getElementById('mInput').value.trim();
+  const boxes = document.querySelectorAll('#mRagPdfs input[type=checkbox]');
+  const sel = Array.from(boxes).filter(b=>b.checked).length;
+  const pdfOk = mFonte==='web' || sel>0;
+  document.getElementById('mBtn').disabled = !v || !pdfOk;
+  const showCache = mFonte==='rag' ? v.toLowerCase().includes('prazo') : (v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar'));
+  document.getElementById('mCache').classList.toggle('hidden', !showCache);
+  if (!v) {
+    document.getElementById('mResRag').classList.add('hidden');
+    document.getElementById('mResWeb').classList.add('hidden');
+  }
+}
+
+function mBuscar() {
+  const btn = document.getElementById('mBtn'); btn.disabled = true;
+  const spin = document.getElementById('mSpin'); spin.classList.add('on');
+  document.getElementById('mResRag').classList.add('hidden');
+  document.getElementById('mResWeb').classList.add('hidden');
+
+  if (mFonte === 'rag') {
+    document.getElementById('mSpinTxt').textContent = 'Buscando nos documentos…';
+    setTimeout(() => {
+      document.getElementById('mSpinTxt').textContent = 'Gerando resposta com o LLM…';
+      setTimeout(() => {
+        spin.classList.remove('on'); btn.disabled = false;
+        document.getElementById('mTxRag').textContent = 'Com base nos documentos, o prazo de entrega é de 30 dias corridos. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato.';
+        document.getElementById('mResRag').classList.remove('hidden');
+        document.getElementById('mChkC').checked = false;
+        document.getElementById('mCArea').classList.add('hidden');
+      }, 1300);
+    }, 1100);
+  } else {
+    document.getElementById('mSpinTxt').textContent = 'Buscando na internet via Gemini…';
     setTimeout(() => {
       spin.classList.remove('on'); btn.disabled = false;
-      document.getElementById('txRag').textContent = 'Com base nos documentos, o prazo de entrega é de 30 dias corridos. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato.';
-      document.getElementById('tRag').textContent = 'Resposta';
-      document.getElementById('rRag').classList.remove('hidden');
-      document.getElementById('chkC').checked = false;
-      document.getElementById('cArea').classList.add('hidden');
-    }, 1300);
-  }, 1100);
+      document.getElementById('mTxWeb').textContent = 'Hoje, 14/04/2026, o dólar está a R$ 5,78 compra e R$ 5,81 venda. Alta de 1,2% na semana.';
+      document.getElementById('mResWeb').classList.remove('hidden');
+    }, 2200);
+  }
 }
-function toggleC() { document.getElementById('cArea').classList.toggle('hidden', !document.getElementById('chkC').checked); }
 
-/* ── Web ── */
-function onWeb() {
-  const v = document.getElementById('iWeb').value.trim();
-  document.getElementById('bWeb').disabled = !v;
-  document.getElementById('cW').classList.toggle('hidden', !(v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar')));
-  if (!v) document.getElementById('rWeb').classList.add('hidden');
-}
-function buscaWeb() {
-  const btn = document.getElementById('bWeb'); btn.disabled = true;
-  const spin = document.getElementById('sWeb'); spin.classList.add('on');
-  setTimeout(() => {
-    spin.classList.remove('on'); btn.disabled = false;
-    document.getElementById('txWeb').textContent = 'Hoje, 14/04/2026, o dólar está a R$ 5,78 compra e R$ 5,81 venda. Alta de 1,2% na semana.';
-    document.getElementById('rWeb').classList.remove('hidden');
-  }, 2200);
-}
+function toggleMC() { document.getElementById('mCArea').classList.toggle('hidden', !document.getElementById('mChkC').checked); }
 
 /* ── Verificação ── */
 function tgModo() {
