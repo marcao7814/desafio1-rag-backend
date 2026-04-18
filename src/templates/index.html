@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Sistema RAG</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ── Top bar (gerado pelo servidor com dados reais) ─────────────────── -->
+<header class="topbar">
+  <button class="hamburger" onclick="toggleSidebar()">☰</button>
+  <span class="logo">🤖 RAG</span>
+  <span class="title">Sistema RAG — PDFs + Busca</span>
+  <div class="topbar-right">
+    <span class="chip">{{ provider }}</span>
+    <span class="chip">{{ modelo }}</span>
+    <span class="chip">localhost:5000</span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="nav-group-label">Documentos</div>
+    <div class="nav-item active" data-panel="pdfs" onclick="go('pdfs',this)">
+      <span class="icon">📂</span> Gerenciar PDFs
+      <span class="count" id="navCountPdfs">{{ stats.total_pdfs }}</span>
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Busca</div>
+    <div class="nav-item" data-panel="busca" onclick="go('busca',this)">
+      <span class="icon">🔍</span> Busca
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Qualidade</div>
+    <div class="nav-item" data-panel="verif" onclick="go('verif',this)">
+      <span class="icon">🚫</span> Verificação de Conteúdo
+    </div>
+    <div class="nav-item" data-panel="histverif" onclick="go('histverif',this)">
+      <span class="icon">🗂</span> Hist. Verificações
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Histórico</div>
+    <div class="nav-item" data-panel="hist" onclick="go('hist',this)">
+      <span class="icon">📋</span> Perguntas e Respostas
+      <span class="count">{{ stats.total_perguntas }}</span>
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Sistema</div>
+    <div class="nav-item muted" style="cursor:default;font-size:12px;padding:8px 18px">
+      <span class="icon">🟢</span> Banco conectado
+    </div>
+    <div class="nav-item muted" style="cursor:default;font-size:12px;padding:8px 18px">
+      <span class="icon">⚙️</span> {{ modelo }}
+    </div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ════ PDFs ════════════════════════════════════════════════════════ -->
+    <div id="panel-pdfs" class="panel active">
+      <div class="breadcrumb"><span>Documentos</span><span class="sep">›</span><span class="cur">Gerenciar PDFs</span></div>
+      <div class="page-head">
+        <h1>📂 Gerenciar PDFs</h1>
+        <p>Upload, ingestão e gerenciamento dos documentos no banco vetorial.</p>
+      </div>
+
+      <!-- Stats gerados pelo servidor -->
+      <div class="stats">
+        <div class="stat blue"><div class="val" id="statTotalPdfs">{{ stats.total_pdfs }}</div><div class="lbl">PDFs no banco</div></div>
+        <div class="stat green"><div class="val" id="statTotalChunks">{{ stats.total_chunks }}</div><div class="lbl">Chunks gravados</div></div>
+        <div class="stat yellow"><div class="val">1.000</div><div class="lbl">Chunk size</div></div>
+        <div class="stat"><div class="val">150</div><div class="lbl">Chunk overlap</div></div>
+      </div>
+
+      <!-- Upload -->
+      <div class="card">
+        <div class="card-title">Upload de PDFs</div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" multiple accept=".pdf"/>
+          <div class="icon">📄</div>
+          <div>Arraste PDFs aqui ou <strong>clique para selecionar</strong></div>
+          <div class="caption mt8">Máximo 5 arquivos · Somente .pdf</div>
+        </div>
+        <div id="fileList" class="mt8"></div>
+
+        <div class="mt12">
+          <label class="lbl">Modo de ingestão</label>
+          <div class="radio-group">
+            <label><input type="radio" name="modo" value="adicionar" checked/> Adicionar aos existentes</label>
+            <label><input type="radio" name="modo" value="substituir"/> Substituir tudo</label>
+          </div>
+        </div>
+        <div class="flex gap8 mt12">
+          <button class="btn btn-primary" id="btnIngerir" onclick="ingerirPdfs()" disabled>⬆️ Ingerir PDFs</button>
+        </div>
+        <div class="spin-row mt8" id="spinIngest"><div class="spinner"></div> Processando arquivos…</div>
+        <div id="ingestMsg"></div>
+      </div>
+
+      <!-- Lista de PDFs (renderizada pelo servidor na carga inicial) -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">PDFs no banco <span class="tag" id="totalPdfsTag">{{ stats.total_pdfs }} arquivo(s)</span></div>
+          <button class="btn-icon" onclick="location.reload()" title="Atualizar">↻</button>
+        </div>
+        <table>
+          <thead><tr><th>Nome do arquivo</th><th>Chunks</th><th>Ação</th></tr></thead>
+          <tbody id="tblPdfsBody">
+            {% if pdfs %}
+              {% for pdf in pdfs %}
+              <tr>
+                <td>{{ pdf.nome }}</td>
+                <td><span class="tag">{{ pdf.chunks }}</span></td>
+                <td><button class="btn btn-danger btn-sm"
+                    onclick="deletarPdf('{{ pdf.source | urlencode }}', this)">🗑️</button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="3" class="muted" style="text-align:center;padding:20px">Nenhum PDF no banco.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+        <div class="mt12 flex gap8">
+          <label class="check-label">
+            <input type="checkbox" id="chkConfirmAll"
+                   onchange="document.getElementById('btnApagarTodos').disabled=!this.checked"/>
+            Confirmar exclusão de <strong>todos</strong>
+          </label>
+          <button class="btn btn-danger btn-sm" id="btnApagarTodos" onclick="deletarTodosPdfs()" disabled>🗑️ Apagar todos</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ Busca (RAG + Internet unificado) ════════════════════════════ -->
+    <div id="panel-busca" class="panel">
+      <div class="breadcrumb"><span>Busca</span><span class="sep">›</span><span class="cur">Busca</span></div>
+      <div class="page-head">
+        <h1>🔍 Busca</h1>
+        <p>Pesquise nos documentos ingeridos (RAG) ou na internet via Gemini com Google Search.</p>
+      </div>
+
+      <!-- Fonte selector -->
+      <div class="card" style="padding:16px 20px">
+        <div class="card-title" style="margin-bottom:10px">Fonte de busca</div>
+        <div class="fonte-selector">
+          <button class="fonte-btn active" id="btnFonteRag" onclick="setFonte('rag')">📄 Documentos (RAG)</button>
+          <button class="fonte-btn" id="btnFonteWeb" onclick="setFonte('web')">🌐 Internet (Gemini)</button>
+        </div>
+
+        <!-- Aviso custo Web -->
+        <div id="avisoWeb" class="hidden">
+          <div class="alert alert-info" style="margin-bottom:0">🌐 Respostas em tempo real via Gemini com Google Search grounding. Custo extra: ~$0,035/busca.</div>
+        </div>
+
+        <!-- PDFs disponíveis (renderizados pelo servidor na carga inicial) -->
+        <div id="ragPdfsPanel">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <label class="lbl" style="margin:0">PDFs disponíveis para a busca</label>
+            <span style="font-size:12px;color:var(--blue);font-weight:600" id="pdfsSelCount">
+              {{ stats.total_pdfs }} selecionado{{ 's' if stats.total_pdfs != 1 else '' }}
+            </span>
+          </div>
+          <div class="pdf-list" id="pdfListaBusca">
+            {% if pdfs %}
+              {% for pdf in pdfs %}
+              <label class="pdf-item">
+                <input type="checkbox" checked onchange="updatePdfCount()" data-source="{{ pdf.source }}"/>
+                <span class="pdf-name">📄 {{ pdf.nome }}</span>
+                <span class="pdf-chunks">{{ pdf.chunks }} chunks</span>
+              </label>
+              {% endfor %}
+            {% else %}
+              <div class="muted caption">Nenhum PDF disponível. Faça upload na aba PDFs.</div>
+            {% endif %}
+          </div>
+          <div class="caption mt8" id="noPdfWarn" style="color:var(--red);display:none">⚠ Selecione ao menos um PDF.</div>
+        </div>
+      </div>
+
+      <!-- Formulário de pergunta -->
+      <div class="card">
+        <label class="lbl" id="lblPerguntaBusca">Sua pergunta sobre os documentos</label>
+        <input type="text" id="inputBusca" placeholder="Ex.: Qual é o prazo de entrega do contrato?"/>
+
+        <!-- Cache hint -->
+        <div id="cacheBusca" class="hidden">
+          <div class="alert alert-warning mt8">
+            ⚡ Resposta em cache de <strong id="cacheDataBusca"></strong>. Nenhum token será gerado.
+          </div>
+          <div class="radio-group mt8">
+            <label><input type="radio" name="acaoBusca" value="usar" checked/> Usar resposta salva</label>
+            <label><input type="radio" name="acaoBusca" value="refazer"/> Refazer (gera tokens)</label>
+          </div>
+        </div>
+
+        <div class="flex gap8 mt12">
+          <button class="btn btn-primary" id="btnBuscar" onclick="buscar()" disabled>🔍 Buscar</button>
+        </div>
+        <div class="spin-row mt8" id="spinBusca"><div class="spinner"></div><span id="spinBuscaTxt">Buscando…</span></div>
+      </div>
+
+      <!-- Resultado RAG -->
+      <div id="resBuscaRag" class="hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Resposta <span class="badge b-rag" style="margin-left:8px">📄 RAG</span></div>
+          </div>
+          <div class="resp-box" id="txtBuscaRag"></div>
+          <div class="mt12">
+            <label class="check-label">
+              <input type="checkbox" id="chkChunks" onchange="toggleChunks()"/> Mostrar chunks recuperados
+            </label>
+          </div>
+          <div id="chunksAreaBusca" class="hidden mt8"></div>
+          <div class="flex gap8 mt12">
+            <button class="btn btn-secondary btn-sm" id="btnDownloadRag">📄 Baixar PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultado Web -->
+      <div id="resBuscaWeb" class="hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Resposta <span class="badge b-web" style="margin-left:8px">🌐 Internet</span></div>
+          </div>
+          <div class="resp-box" id="txtBuscaWeb"></div>
+          <div class="mt12">
+            <div class="card-title mb8" style="font-size:13px">🔗 Fontes utilizadas</div>
+            <div id="fontesWeb"></div>
+          </div>
+          <div class="flex gap8 mt12">
+            <button class="btn btn-secondary btn-sm" id="btnDownloadWeb">📄 Baixar PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ Verificação ═════════════════════════════════════════════════ -->
+    <div id="panel-verif" class="panel">
+      <div class="breadcrumb"><span>Qualidade</span><span class="sep">›</span><span class="cur">Verificação de Conteúdo</span></div>
+      <div class="page-head">
+        <h1>🚫 Verificação de Conteúdo</h1>
+        <p>Verifique se os chunks contêm conteúdo proibido por busca exata (SQL) ou moderação por LLM.</p>
+      </div>
+
+      <div class="row gap8">
+        <div class="col">
+          <div class="card">
+            <div class="card-title mb8">Configuração</div>
+            <label class="lbl">Arquivo a verificar</label>
+            <select id="selArquivoVerif" class="mb8">
+              {% if pdfs %}
+                {% for pdf in pdfs %}
+                <option value="{{ pdf.nome }}" data-source="{{ pdf.source }}">{{ pdf.nome }}</option>
+                {% endfor %}
+              {% else %}
+                <option value="">Nenhum PDF disponível</option>
+              {% endif %}
+            </select>
+
+            <label class="lbl">Modo de verificação</label>
+            <select id="modoVerif" onchange="toggleModoVerif()" class="mb8">
+              <option value="exata">Busca exata (SQL — sem custo)</option>
+              <option value="llm">Moderação por LLM (gera tokens)</option>
+            </select>
+
+            <div id="configExata">
+              <label class="lbl">Palavras proibidas (uma por linha)</label>
+              <textarea id="palavrasProibidas" style="height:90px">violência
+discriminação
+conteúdo adulto
+linguagem ofensiva</textarea>
+            </div>
+            <div id="configLlm" class="hidden">
+              <label class="lbl">Descreva o que deve ser detectado</label>
+              <input type="text" id="criterioLlm" value="linguagem inadequada"/>
+            </div>
+
+            <button class="btn btn-primary mt12" style="width:100%" onclick="verificarConteudo()">🔍 Verificar</button>
+            <div class="spin-row mt8" id="spinVerif"><div class="spinner"></div> Varrendo chunks…</div>
+          </div>
+        </div>
+
+        <div class="col2">
+          <div id="resVerif" class="hidden"></div>
+          <div id="resVerifEmpty" class="card empty-state">
+            <div class="icon">🔍</div>
+            Configure e execute uma verificação para ver os resultados aqui.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ Hist. Verificações ══════════════════════════════════════════ -->
+    <div id="panel-histverif" class="panel">
+      <div class="breadcrumb"><span>Qualidade</span><span class="sep">›</span><span class="cur">Histórico de Verificações</span></div>
+      <div class="page-head">
+        <h1>🗂 Histórico de Verificações</h1>
+        <p>Todas as verificações realizadas, com possibilidade de revisão manual dos reprovados.</p>
+      </div>
+      <div class="card" style="padding:12px 16px;margin-bottom:12px">
+        <label class="lbl">🔎 Filtrar</label>
+        <input type="text" placeholder="Arquivo ou critério…" oninput="filtrarHistoricoPerguntas(this.value)"/>
+      </div>
+      <div id="listaHistVerif">
+        <div class="empty-state"><div class="icon">⏳</div>Abrindo o painel para carregar…</div>
+      </div>
+    </div>
+
+    <!-- ════ Hist. Perguntas ══════════════════════════════════════════════ -->
+    <div id="panel-hist" class="panel">
+      <div class="breadcrumb"><span>Histórico</span><span class="sep">›</span><span class="cur">Perguntas e Respostas</span></div>
+      <div class="page-head">
+        <h1>📋 Histórico de Perguntas</h1>
+        <p>Todas as consultas RAG e buscas web com opção de download e exclusão.</p>
+      </div>
+      <div class="card" style="padding:12px 16px;margin-bottom:12px">
+        <label class="lbl">🔎 Filtrar por texto</label>
+        <input type="text" placeholder="Digite para filtrar…" oninput="filtrarHistoricoPerguntas(this.value)"/>
+      </div>
+      <div class="caption mb8" id="totalHistPerguntas">Total: {{ stats.total_perguntas }} registro(s)</div>
+      <div id="listaHistPerguntas">
+        <div class="empty-state"><div class="icon">⏳</div>Abrindo o painel para carregar…</div>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /shell -->
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

@@ -24,24 +24,21 @@ if errorlevel 1 (
 echo ============================================================
 echo  Verificando dependencias...
 echo ============================================================
-pip show streamlit >nul 2>&1
+pip show flask >nul 2>&1
 if errorlevel 1 (
-    echo  Instalando streamlit...
-    pip install streamlit>=1.35.0 --quiet
+    echo  Instalando Flask...
+    pip install flask>=3.0.0 --quiet
 )
 
 echo ============================================================
-echo  Iniciando servidor Streamlit...
-echo  Acesse: http://localhost:8501
+echo  Iniciando servidor Flask (orquestrador Python)...
+echo  Acesse: http://localhost:5000
 echo ============================================================
 
-REM Abre o Chrome apos 3 segundos (enquanto o Streamlit sobe)
-start /b cmd /c "ping -n 4 127.0.0.1 >nul && start chrome http://localhost:8501"
+REM Abre o Chrome apos 3 segundos (enquanto o Flask sobe)
+start /b cmd /c "ping -n 4 127.0.0.1 >nul && start chrome http://localhost:5000"
 
-REM Inicia o Streamlit sem abrir navegador automatico (Chrome ja sera aberto acima)
-streamlit run src/frontEnd.py ^
-    --server.port 8501 ^
-    --server.headless true ^
-    --browser.gatherUsageStats false
+REM Inicia o Flask
+python src\app.py
 
 pause
