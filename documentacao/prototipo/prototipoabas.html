@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Sistema RAG — Abas</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1117;--surface:#1a1d27;--surface2:#262730;--border:#31333f;
+  --primary:#ff4b4b;--primary-h:#c73333;--blue:#4f8ef7;
+  --green:#21c354;--yellow:#faca2b;--red:#e03131;
+  --text:#fafafa;--muted:#8a8d99;--radius:8px;
+  --font:'Segoe UI',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh}
+
+/* ── Header ── */
+.app-header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:12px 28px;display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:200;
+}
+.app-logo{font-size:18px;font-weight:800;color:var(--primary)}
+.app-tag{font-size:11px;color:var(--muted);background:var(--surface2);
+  border:1px solid var(--border);border-radius:4px;padding:2px 8px}
+
+/* ── Tab bar ── */
+.tab-bar{
+  background:var(--surface);border-bottom:2px solid var(--border);
+  display:flex;overflow-x:auto;padding:0 20px;gap:2px;
+  position:sticky;top:57px;z-index:190;
+}
+.tab-bar::-webkit-scrollbar{height:3px}
+.tab-bar::-webkit-scrollbar-thumb{background:var(--border)}
+.tab-btn{
+  display:flex;align-items:center;gap:7px;padding:13px 18px;
+  border:none;background:transparent;color:var(--muted);cursor:pointer;
+  font-family:var(--font);font-size:13px;font-weight:500;
+  border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;
+  transition:color .15s,border-color .15s;
+}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.tab-btn .badge{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:1px 7px;font-size:11px;
+}
+.tab-btn.active .badge{background:rgba(255,75,75,.15);border-color:rgba(255,75,75,.3);color:var(--primary)}
+
+/* ── Content ── */
+.content{max-width:860px;margin:0 auto;padding:28px 20px 60px}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Page title ── */
+.page-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.page-desc{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* ── Card ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text)}
+
+/* ── Form ── */
+label.lbl{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input[type=text],select,textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:9px 12px;color:var(--text);font-family:var(--font);
+  font-size:14px;outline:none;transition:border .15s;
+}
+input[type=text]:focus,select:focus,textarea:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:80px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;
+  border-radius:6px;border:none;cursor:pointer;font-family:var(--font);
+  font-size:13px;font-weight:600;transition:background .15s,transform .1s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-h)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:#7b2020;color:#fcc}
+.btn-danger:hover{background:#9b2626}
+.btn-ghost{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.btn-ghost:hover{background:rgba(79,142,247,.1)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+/* ── Alerts ── */
+.alert{padding:10px 14px;border-radius:6px;margin:10px 0;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+.alert-success{background:#0d3321;border-left:3px solid var(--green);color:#7deba0}
+.alert-info{background:#0d2340;border-left:3px solid var(--blue);color:#7dc6f5}
+.alert-warning{background:#302410;border-left:3px solid var(--yellow);color:#f5d87d}
+.alert-error{background:#3b0d0d;border-left:3px solid var(--red);color:#f57d7d}
+
+/* ── Upload ── */
+.upload-zone{
+  border:2px dashed var(--border);border-radius:var(--radius);padding:28px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;color:var(--muted)
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue);background:rgba(79,142,247,.05)}
+.upload-zone input{display:none}
+.upload-zone .icon{font-size:32px;margin-bottom:8px}
+
+/* ── Table ── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;background:var(--surface2);color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+
+/* ── Response box ── */
+.resp-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;max-height:280px;overflow-y:auto;font-size:13.5px;line-height:1.75;white-space:pre-wrap}
+
+/* ── Chunk ── */
+.chunk{border-left:3px solid var(--blue);padding:10px 14px;margin:6px 0;
+  background:var(--surface2);border-radius:0 var(--radius) var(--radius) 0;font-size:12.5px}
+.chunk-meta{color:var(--muted);margin-bottom:4px;font-size:12px}
+.chunk-text{color:#cdd;font-style:italic}
+
+/* ── Source link ── */
+.src-link{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);
+  border-radius:6px;margin:5px 0;font-size:13px;border:1px solid var(--border)}
+.src-link a{color:var(--blue);text-decoration:none}
+.src-link a:hover{text-decoration:underline}
+.src-link .num{color:var(--muted);font-weight:700;min-width:22px}
+
+/* ── Badge ── */
+.badge-rag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;
+  font-weight:700;background:#1a3060;color:#7dc6f5}
+.badge-web{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;
+  font-weight:700;background:#1a3020;color:#7debaa}
+.badge-ok{background:#0d3321;color:#7deba0;display:inline-block;padding:2px 10px;
+  border-radius:20px;font-size:11px;font-weight:700}
+.badge-fail{background:#3b0d0d;color:#f57d7d;display:inline-block;padding:2px 10px;
+  border-radius:20px;font-size:11px;font-weight:700}
+.badge-manual{background:#2a1a50;color:#c0a0ff;display:inline-block;padding:2px 10px;
+  border-radius:20px;font-size:11px;font-weight:700}
+
+/* ── Spinner ── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:15px;height:15px;border:2px solid var(--border);
+  border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+.spin-row{display:none;align-items:center;gap:10px;padding:8px 0;color:var(--muted);font-size:13px}
+.spin-row.on{display:flex}
+
+/* ── History item ── */
+.hist{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.hist-hd{background:var(--surface);padding:10px 14px;cursor:pointer;display:flex;
+  align-items:center;justify-content:space-between;font-size:13px;user-select:none}
+.hist-hd:hover{background:var(--surface2)}
+.hist-bd{display:none;padding:16px;border-top:1px solid var(--border);background:var(--bg);font-size:13px}
+.hist-bd.open{display:block}
+
+/* ── Radio / checkbox ── */
+.radio-group{display:flex;gap:16px}
+.radio-group label,.check-label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text)}
+input[type=radio],input[type=checkbox]{accent-color:var(--blue);width:14px;height:14px}
+
+/* ── Divider ── */
+hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* ── Tag inline ── */
+.tag{background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  padding:1px 7px;font-size:11px;color:var(--muted);font-family:monospace}
+
+/* ── Grid ── */
+.row{display:flex;gap:14px}
+.col{flex:1}
+.col2{flex:2}
+.col3{flex:3}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:#0d3321;border-left:4px solid var(--green);color:#7deba0;
+  padding:12px 18px;border-radius:var(--radius);font-size:13px;
+  box-shadow:0 4px 20px rgba(0,0,0,.5);animation:slideIn .25s ease}
+@keyframes slideIn{from{transform:translateX(120%)}to{transform:translateX(0)}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Utils ── */
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mb8{margin-bottom:8px}.gap8{gap:8px}.flex{display:flex;align-items:center}
+.muted{color:var(--muted)}.caption{font-size:11.5px;color:var(--muted);margin-top:4px}
+strong{color:#e0e0ff}.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header class="app-header">
+  <span class="app-logo">🤖 RAG</span>
+  <span style="color:var(--muted);font-size:13px">Sistema RAG — PDFs + Busca</span>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span class="app-tag">gemini</span>
+    <span class="app-tag">localhost:8501</span>
+  </div>
+</header>
+
+<!-- ── Tab bar ─────────────────────────────────────────── -->
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('pdfs',this)">📂 PDFs</button>
+  <button class="tab-btn" onclick="showTab('rag',this)">🔍 Busca RAG</button>
+  <button class="tab-btn" onclick="showTab('web',this)">🌐 Internet</button>
+  <button class="tab-btn" onclick="showTab('verif',this)">🚫 Verificação</button>
+  <button class="tab-btn" onclick="showTab('histverif',this)">🗂 Hist. Verificação</button>
+  <button class="tab-btn" onclick="showTab('hist',this)">📋 Hist. Perguntas</button>
+</nav>
+
+<!-- ── Content ─────────────────────────────────────────── -->
+<div class="content">
+
+  <!-- ════ ABA 1 — PDFs ════ -->
+  <div id="tab-pdfs" class="tab-panel active">
+    <div class="page-title">📂 Gerenciar PDFs</div>
+    <div class="page-desc">Faça upload, gerencie e remova PDFs do banco vetorial.</div>
+
+    <div class="card">
+      <div class="card-title">Upload de PDFs</div>
+      <div class="upload-zone" onclick="document.getElementById('fi').click()"
+           ondragover="event.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="dropFiles(event)">
+        <input type="file" id="fi" multiple accept=".pdf" onchange="pickFiles(this.files)"/>
+        <div class="icon">📄</div>
+        <div>Arraste PDFs aqui ou <strong>clique para selecionar</strong></div>
+        <div class="caption mt8">Máximo 5 arquivos · Somente .pdf</div>
+      </div>
+      <div id="fileList" class="mt8"></div>
+
+      <div class="mt12">
+        <label class="lbl">Modo de ingestão</label>
+        <div class="radio-group">
+          <label><input type="radio" name="modo" value="add" checked/> Adicionar aos existentes</label>
+          <label><input type="radio" name="modo" value="sub"/> Substituir tudo</label>
+        </div>
+      </div>
+
+      <div class="flex gap8 mt12">
+        <button class="btn btn-primary" id="btnIngerir" onclick="ingerir()" disabled>⬆️ Ingerir PDFs</button>
+      </div>
+      <div class="spin-row mt8" id="spinIngest"><div class="spinner"></div> Processando arquivos…</div>
+      <div id="ingestMsg"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">PDFs no banco <span class="tag" id="totalPdfs">3 arquivos</span></div>
+      <div class="row">
+        <div class="col3">
+          <table id="tblPdfs">
+            <thead><tr><th>Nome do arquivo</th><th>Chunks</th></tr></thead>
+            <tbody>
+              <tr><td>relatorio_anual_2023.pdf</td><td><span class="tag">142</span></td></tr>
+              <tr><td>contrato_prestacao_servicos.pdf</td><td><span class="tag">87</span></td></tr>
+              <tr><td>manual_operacoes.pdf</td><td><span class="tag">203</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col" style="border-left:1px solid var(--border);padding-left:14px">
+          <label class="lbl">Apagar arquivo</label>
+          <select id="selPdf">
+            <option>relatorio_anual_2023.pdf</option>
+            <option>contrato_prestacao_servicos.pdf</option>
+            <option>manual_operacoes.pdf</option>
+          </select>
+          <button class="btn btn-secondary btn-sm mt8" onclick="apagarSel()" style="width:100%">🗑️ Apagar selecionado</button>
+          <hr/>
+          <label class="check-label mb8">
+            <input type="checkbox" id="chkAll" onchange="document.getElementById('btnAll').disabled=!this.checked"/>
+            Confirmar exclusão de <strong>todos</strong>
+          </label>
+          <button class="btn btn-danger btn-sm" id="btnAll" onclick="apagarTodos()" disabled style="width:100%">🗑️ Apagar todos</button>
+        </div>
+      </div>
+      <div id="pdfMsg"></div>
+    </div>
+  </div>
+
+  <!-- ════ ABA 2 — Busca RAG ════ -->
+  <div id="tab-rag" class="tab-panel">
+    <div class="page-title">🔍 Busca / Consulta RAG</div>
+    <div class="page-desc">Faça perguntas sobre os documentos ingeridos. Respostas baseadas exclusivamente no conteúdo dos PDFs.</div>
+
+    <div class="card">
+      <label class="lbl">Sua pergunta</label>
+      <input type="text" id="inputRag" placeholder="Ex.: Qual é o prazo de entrega do contrato?" oninput="onRagIn()"/>
+
+      <div id="cacheRag" class="hidden">
+        <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>14/04/2026 09:31</strong>. Nenhum token será gerado.</div>
+        <div class="radio-group mt8">
+          <label><input type="radio" name="acaoRag" value="usar" checked/> Usar resposta salva</label>
+          <label><input type="radio" name="acaoRag" value="ref"/> Refazer (gera tokens)</label>
+        </div>
+      </div>
+
+      <div class="flex gap8 mt12">
+        <button class="btn btn-primary" id="btnRag" onclick="buscarRag()" disabled>🔍 Buscar</button>
+      </div>
+      <div class="spin-row mt8" id="spinRag"><div class="spinner"></div><span id="spinRagTxt">Buscando nos documentos…</span></div>
+    </div>
+
+    <div id="resRag" class="hidden">
+      <div class="card">
+        <div class="card-title" id="titleRag">Resposta</div>
+        <div class="resp-box" id="txtRag"></div>
+
+        <div class="mt12">
+          <label class="check-label"><input type="checkbox" id="chkChunks" onchange="toggleChunks()"/> Mostrar chunks recuperados</label>
+        </div>
+        <div id="chunksArea" class="hidden mt8">
+          <div class="chunk"><div class="chunk-meta"><strong>[1]</strong> Score: <span class="tag">0.1342</span> &nbsp; contrato_prestacao_servicos.pdf &nbsp; Pág. 4</div><div class="chunk-text">"O prazo de entrega dos serviços contratados é de 30 (trinta) dias corridos a partir da assinatura deste instrumento…"</div></div>
+          <div class="chunk"><div class="chunk-meta"><strong>[2]</strong> Score: <span class="tag">0.2187</span> &nbsp; contrato_prestacao_servicos.pdf &nbsp; Pág. 7</div><div class="chunk-text">"Em caso de atraso, a contratada ficará sujeita à multa de 0,5% por dia útil…"</div></div>
+        </div>
+
+        <div class="flex gap8 mt12">
+          <button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado! Download iniciado.')">📄 Baixar PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ ABA 3 — Internet ════ -->
+  <div id="tab-web" class="tab-panel">
+    <div class="page-title">🌐 Busca na Internet</div>
+    <div class="page-desc">Perguntas respondidas pelo Gemini com Google Search em tempo real. Custo extra: ~$0,035/busca.</div>
+
+    <div class="card">
+      <label class="lbl">Sua pergunta</label>
+      <input type="text" id="inputWeb" placeholder="Ex.: Qual é a cotação do dólar hoje?" oninput="onWebIn()"/>
+
+      <div id="cacheWeb" class="hidden">
+        <div class="alert alert-warning mt8">⚡ Resposta em cache de <strong>13/04/2026 17:45</strong>.</div>
+        <div class="radio-group mt8">
+          <label><input type="radio" name="acaoWeb" value="usar" checked/> Usar resposta salva</label>
+          <label><input type="radio" name="acaoWeb" value="ref"/> Refazer (gera tokens)</label>
+        </div>
+      </div>
+
+      <div class="flex gap8 mt12">
+        <button class="btn btn-primary" id="btnWeb" onclick="buscarWeb()" disabled>🌐 Buscar na Internet</button>
+      </div>
+      <div class="spin-row mt8" id="spinWeb"><div class="spinner"></div> Buscando na internet…</div>
+    </div>
+
+    <div id="resWeb" class="hidden">
+      <div class="card">
+        <div class="card-title">Resposta</div>
+        <div class="resp-box" id="txtWeb"></div>
+
+        <div class="card mt12" style="padding:14px">
+          <div class="card-title" style="margin-bottom:10px">🔗 Fontes utilizadas</div>
+          <div class="src-link"><span class="num">[1]</span><a href="#" onclick="return false">Banco Central do Brasil — Taxa de Câmbio</a></div>
+          <div class="src-link"><span class="num">[2]</span><a href="#" onclick="return false">Reuters Brasil — Mercado Financeiro</a></div>
+          <div class="src-link"><span class="num">[3]</span><a href="#" onclick="return false">UOL Economia — Câmbio em tempo real</a></div>
+        </div>
+        <button class="btn btn-secondary btn-sm mt8" onclick="toast('PDF gerado! Download iniciado.')">📄 Baixar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ ABA 4 — Verificação ════ -->
+  <div id="tab-verif" class="tab-panel">
+    <div class="page-title">🚫 Verificação de Conteúdo</div>
+    <div class="page-desc">Verifique se os chunks gravados contêm conteúdo proibido por busca exata (SQL) ou moderação por LLM.</div>
+
+    <div class="card">
+      <div class="row gap8">
+        <div class="col">
+          <label class="lbl">Arquivo a verificar</label>
+          <select>
+            <option>relatorio_anual_2023.pdf</option>
+            <option>contrato_prestacao_servicos.pdf</option>
+            <option>manual_operacoes.pdf</option>
+          </select>
+        </div>
+        <div class="col">
+          <label class="lbl">Modo de verificação</label>
+          <select id="modoVerif" onchange="toggleModo()">
+            <option value="exata">Busca exata (SQL — sem custo)</option>
+            <option value="llm">Moderação por LLM (gera tokens)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="configExata" class="mt12">
+        <label class="lbl">Palavras proibidas (uma por linha)</label>
+        <textarea style="height:90px">violência
+discriminação
+conteúdo adulto
+linguagem ofensiva</textarea>
+      </div>
+
+      <div id="configLlm" class="hidden mt12">
+        <label class="lbl">Descreva o que deve ser detectado</label>
+        <input type="text" value="linguagem inadequada" placeholder="Ex.: linguagem ofensiva, conteúdo sexual…"/>
+      </div>
+
+      <div class="flex gap8 mt12">
+        <button class="btn btn-primary" onclick="verificar()">🔍 Verificar conteúdo</button>
+      </div>
+      <div class="spin-row mt8" id="spinVerif"><div class="spinner"></div> Varrendo chunks do banco…</div>
+    </div>
+
+    <div id="resVerif" class="hidden">
+      <div class="alert alert-error">❌ <strong>2 chunk(s) reprovados</strong> — critério: violência, linguagem ofensiva</div>
+
+      <div class="card">
+        <div class="card-title">📄 contrato_prestacao_servicos.pdf — 2 ocorrências</div>
+
+        <div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:10px">
+          <div class="muted" style="font-size:12px;margin-bottom:6px"><strong>Página 3</strong> &nbsp;|&nbsp; Palavras: <span class="tag">violência</span></div>
+          <div style="font-size:13px;font-style:italic;color:#cdd;margin-bottom:10px">"…situações de <mark style="background:#5c1a1a;color:#fcc;border-radius:2px">violência</mark> contratual devem ser reportadas ao gestor responsável…"</div>
+          <div class="row gap8">
+            <button class="btn btn-ghost btn-sm">✅ Aprovar manualmente</button>
+            <button class="btn btn-secondary btn-sm">🚫 Confirmar Reprovação</button>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:6px;padding:12px">
+          <div class="muted" style="font-size:12px;margin-bottom:6px"><strong>Página 11</strong> &nbsp;|&nbsp; Palavras: <span class="tag">linguagem ofensiva</span></div>
+          <div style="font-size:13px;font-style:italic;color:#cdd;margin-bottom:10px">"…proibido o uso de <mark style="background:#5c1a1a;color:#fcc;border-radius:2px">linguagem ofensiva</mark> em comunicações internas…"</div>
+          <div class="row gap8">
+            <button class="btn btn-ghost btn-sm" onclick="toast('✅ 1 ocorrência aprovada manualmente.')">✅ Aprovar manualmente</button>
+            <button class="btn btn-secondary btn-sm">🚫 Confirmar Reprovação</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-sm" onclick="toast('PDF de verificação gerado!')">📄 Baixar PDF da verificação</button>
+    </div>
+  </div>
+
+  <!-- ════ ABA 5 — Hist. Verificação ════ -->
+  <div id="tab-histverif" class="tab-panel">
+    <div class="page-title">🗂 Histórico de Verificações</div>
+    <div class="page-desc">Todas as verificações de conteúdo realizadas, com status e opção de revisão manual.</div>
+
+    <div class="card" style="padding:12px 16px">
+      <label class="lbl">🔎 Filtrar por arquivo ou critério</label>
+      <input type="text" placeholder="Digite para filtrar…"/>
+    </div>
+
+    <div class="caption mb8">Total: 4 verificação(ões)</div>
+
+    <div class="hist">
+      <div class="hist-hd" onclick="toggleH(this)">
+        <div class="flex gap8"><span>🗓 14/04/2026 10:22</span><span class="badge-ok">✅ APROVADO</span><span class="tag">SQL</span></div>
+        <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">manual_operacoes.pdf</div>
+        <span class="muted">▼</span>
+      </div>
+      <div class="hist-bd">
+        <div class="row"><div class="col"><strong>Arquivo:</strong> manual_operacoes.pdf</div><div class="col"><strong>Modo:</strong> Busca Exata (SQL)</div></div>
+        <div class="row mt8"><div class="col"><strong>Resultado:</strong> <span class="badge-ok">✅ APROVADO</span></div><div class="col"><strong>Critério:</strong> violência, discriminação</div></div>
+        <div class="flex gap8 mt12"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+      </div>
+    </div>
+
+    <div class="hist">
+      <div class="hist-hd" onclick="toggleH(this)">
+        <div class="flex gap8"><span>🗓 13/04/2026 15:10</span><span class="badge-fail">❌ REPROVADO</span><span class="tag">SQL</span></div>
+        <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">contrato_prestacao_servicos.pdf</div>
+        <span class="muted">▼</span>
+      </div>
+      <div class="hist-bd">
+        <div class="row"><div class="col"><strong>Arquivo:</strong> contrato_prestacao_servicos.pdf</div><div class="col"><strong>Modo:</strong> Busca Exata (SQL)</div></div>
+        <div class="row mt8"><div class="col"><strong>Resultado:</strong> <span class="badge-fail">❌ REPROVADO</span></div><div class="col"><strong>Palavras encontradas:</strong> "violência", "linguagem ofensiva"</div></div>
+        <div style="margin-top:12px">
+          <div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;font-size:13px">
+            <div class="muted mb8"><strong>Pág. 3</strong> &nbsp;|&nbsp; Palavras: <span class="tag">violência</span></div>
+            <div style="font-style:italic;color:#cdd;margin-bottom:8px">"…situações de violência contratual…"</div>
+            <div class="row gap8">
+              <button class="btn btn-ghost btn-sm" onclick="toast('✅ 1 ocorrência aprovada.')">✅ Aprovar</button>
+              <button class="btn btn-secondary btn-sm">🚫 Confirmar Reprovação</button>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap8 mt8"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+      </div>
+    </div>
+
+    <div class="hist">
+      <div class="hist-hd" onclick="toggleH(this)">
+        <div class="flex gap8"><span>🗓 12/04/2026 09:05</span><span class="badge-manual">✅ APROVADO MANUALMENTE</span><span class="tag">LLM</span></div>
+        <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">relatorio_anual_2023.pdf</div>
+        <span class="muted">▼</span>
+      </div>
+      <div class="hist-bd">
+        <div class="row"><div class="col"><strong>Arquivo:</strong> relatorio_anual_2023.pdf</div><div class="col"><strong>Modo:</strong> Moderação por LLM</div></div>
+        <div class="row mt8"><div class="col"><strong>Resultado:</strong> <span class="badge-manual">✅ APROVADO MANUALMENTE</span></div><div class="col"><strong>Critério:</strong> linguagem inadequada</div></div>
+        <div class="flex gap8 mt12"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ ABA 6 — Hist. Perguntas ════ -->
+  <div id="tab-hist" class="tab-panel">
+    <div class="page-title">📋 Histórico de Perguntas</div>
+    <div class="page-desc">Todas as perguntas respondidas, RAG e busca web, com opção de download e exclusão.</div>
+
+    <div class="card" style="padding:12px 16px">
+      <label class="lbl">🔎 Filtrar por texto</label>
+      <input type="text" placeholder="Digite para filtrar perguntas…" oninput="filtrar(this.value)"/>
+    </div>
+
+    <div class="caption mb8" id="totalHist">Total: 4 registro(s)</div>
+
+    <div id="listaHist">
+      <div class="hist" data-txt="prazo entrega contrato documentos rag">
+        <div class="hist-hd" onclick="toggleH(this)">
+          <div class="flex gap8"><span>🗓 14/04/2026 10:22</span><span class="badge-rag">📄 RAG</span></div>
+          <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Qual é o prazo de entrega do contrato?</div>
+          <span class="muted">▼</span>
+        </div>
+        <div class="hist-bd">
+          <p><strong>Pergunta:</strong> Qual é o prazo de entrega do contrato?</p>
+          <p class="mt8"><strong>Resposta:</strong></p>
+          <div class="resp-box mt8">Com base nos documentos analisados, o prazo de entrega dos serviços contratados é de 30 dias corridos a partir da assinatura do contrato. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total.</div>
+          <div class="flex gap8 mt12"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+        </div>
+      </div>
+
+      <div class="hist" data-txt="dólar cotação câmbio internet web">
+        <div class="hist-hd" onclick="toggleH(this)">
+          <div class="flex gap8"><span>🗓 13/04/2026 17:45</span><span class="badge-web">🌐 Web</span></div>
+          <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Qual é a cotação do dólar hoje?</div>
+          <span class="muted">▼</span>
+        </div>
+        <div class="hist-bd">
+          <p><strong>Pergunta:</strong> Qual é a cotação do dólar hoje?</p>
+          <p class="mt8"><strong>Resposta:</strong></p>
+          <div class="resp-box mt8">O dólar americano está cotado a R$ 5,78 na compra e R$ 5,81 na venda, acumulando alta de 1,2% na semana.</div>
+          <div class="card mt8" style="padding:10px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">🔗 Fontes</div>
+            <div class="src-link"><span class="num">[1]</span><a href="#" onclick="return false">Banco Central do Brasil</a></div>
+            <div class="src-link"><span class="num">[2]</span><a href="#" onclick="return false">Reuters Brasil</a></div>
+          </div>
+          <div class="flex gap8 mt8"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+        </div>
+      </div>
+
+      <div class="hist" data-txt="multa atraso pagamento rag">
+        <div class="hist-hd" onclick="toggleH(this)">
+          <div class="flex gap8"><span>🗓 13/04/2026 14:10</span><span class="badge-rag">📄 RAG</span></div>
+          <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Qual a multa por atraso no pagamento?</div>
+          <span class="muted">▼</span>
+        </div>
+        <div class="hist-bd">
+          <p><strong>Pergunta:</strong> Qual a multa por atraso no pagamento?</p>
+          <p class="mt8"><strong>Resposta:</strong></p>
+          <div class="resp-box mt8">Multa de 2% sobre o valor da parcela vencida, acrescida de juros de 1% ao mês pro rata die.</div>
+          <div class="flex gap8 mt12"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+        </div>
+      </div>
+
+      <div class="hist" data-txt="inteligência artificial ia web internet">
+        <div class="hist-hd" onclick="toggleH(this)">
+          <div class="flex gap8"><span>🗓 12/04/2026 09:05</span><span class="badge-web">🌐 Web</span></div>
+          <div class="muted" style="flex:1;margin:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Quais são as tendências de IA em 2025?</div>
+          <span class="muted">▼</span>
+        </div>
+        <div class="hist-bd">
+          <p><strong>Pergunta:</strong> Quais são as tendências de IA em 2025?</p>
+          <p class="mt8"><strong>Resposta:</strong></p>
+          <div class="resp-box mt8">Modelos multimodais, agentes autônomos, IA generativa empresarial, regulamentação crescente e reasoning models.</div>
+          <div class="flex gap8 mt12"><button class="btn btn-secondary btn-sm" onclick="toast('PDF gerado!')">📄 Baixar PDF</button><button class="btn btn-danger btn-sm" onclick="this.closest('.hist').remove()">🗑️ Apagar</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+/* ── Tabs ── */
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+/* ── History toggle ── */
+function toggleH(hd) { hd.nextElementSibling.classList.toggle('open'); }
+
+/* ── File upload ── */
+let files = [];
+function pickFiles(f) { files = Array.from(f).slice(0,5); renderFiles(); }
+function dropFiles(e) { e.preventDefault(); e.currentTarget.classList.remove('drag'); pickFiles(e.dataTransfer.files); }
+function renderFiles() {
+  const el = document.getElementById('fileList');
+  el.innerHTML = files.map((f,i) =>
+    `<div class="flex gap8 mt8"><span>📄 ${f.name}</span><span class="tag">${(f.size/1024).toFixed(1)} KB</span>
+     <button class="btn btn-secondary btn-sm" style="margin-left:auto;padding:2px 8px" onclick="rmFile(${i})">✕</button></div>`
+  ).join('');
+  document.getElementById('btnIngerir').disabled = !files.length;
+}
+function rmFile(i) { files.splice(i,1); renderFiles(); }
+
+/* ── Ingerir ── */
+function ingerir() {
+  const btn = document.getElementById('btnIngerir');
+  const spin = document.getElementById('spinIngest');
+  const msg = document.getElementById('ingestMsg');
+  btn.disabled = true; spin.classList.add('on'); msg.innerHTML = '';
+  setTimeout(() => {
+    spin.classList.remove('on'); btn.disabled = false;
+    const n = files.length * 45 + Math.floor(Math.random()*20);
+    msg.innerHTML = `<div class="alert alert-success mt8">✅ ${n} chunk(s) gravados com sucesso.</div>`;
+    files = []; renderFiles();
+  }, 2000);
+}
+function apagarSel() { toast('Chunks removidos com sucesso.'); }
+function apagarTodos() { document.querySelector('#tblPdfs tbody').innerHTML = ''; document.getElementById('totalPdfs').textContent='0 arquivos'; document.getElementById('chkAll').checked=false; document.getElementById('btnAll').disabled=true; toast('Banco limpo.'); }
+
+/* ── RAG ── */
+function onRagIn() {
+  const v = document.getElementById('inputRag').value.trim();
+  document.getElementById('btnRag').disabled = !v;
+  document.getElementById('cacheRag').classList.toggle('hidden', !v.toLowerCase().includes('prazo'));
+  if (!v) document.getElementById('resRag').classList.add('hidden');
+}
+function buscarRag() {
+  const p = document.getElementById('inputRag').value.trim();
+  const btn = document.getElementById('btnRag'); btn.disabled = true;
+  const spin = document.getElementById('spinRag'); spin.classList.add('on');
+  document.getElementById('spinRagTxt').textContent = 'Buscando nos documentos…';
+  setTimeout(() => {
+    document.getElementById('spinRagTxt').textContent = 'Gerando resposta com o LLM…';
+    setTimeout(() => {
+      spin.classList.remove('on'); btn.disabled = false;
+      document.getElementById('txtRag').textContent = 'Com base nos documentos analisados, o prazo de entrega é de 30 dias corridos a partir da assinatura do contrato. Em caso de atraso, aplica-se multa de 0,5% por dia útil, limitada a 10% do valor total do contrato.';
+      document.getElementById('titleRag').textContent = 'Resposta';
+      document.getElementById('resRag').classList.remove('hidden');
+      document.getElementById('chkChunks').checked = false;
+      document.getElementById('chunksArea').classList.add('hidden');
+    }, 1300);
+  }, 1100);
+}
+function toggleChunks() { document.getElementById('chunksArea').classList.toggle('hidden', !document.getElementById('chkChunks').checked); }
+
+/* ── Web ── */
+function onWebIn() {
+  const v = document.getElementById('inputWeb').value.trim();
+  document.getElementById('btnWeb').disabled = !v;
+  document.getElementById('cacheWeb').classList.toggle('hidden', !(v.toLowerCase().includes('dólar')||v.toLowerCase().includes('dolar')));
+  if (!v) document.getElementById('resWeb').classList.add('hidden');
+}
+function buscarWeb() {
+  const btn = document.getElementById('btnWeb'); btn.disabled = true;
+  const spin = document.getElementById('spinWeb'); spin.classList.add('on');
+  setTimeout(() => {
+    spin.classList.remove('on'); btn.disabled = false;
+    document.getElementById('txtWeb').textContent = 'Hoje, 14/04/2026, o dólar está cotado a R$ 5,78 na compra e R$ 5,81 na venda. A moeda acumula alta de 1,2% na semana, impulsionada por tensões internacionais.';
+    document.getElementById('resWeb').classList.remove('hidden');
+  }, 2200);
+}
+
+/* ── Verificação ── */
+function toggleModo() {
+  const v = document.getElementById('modoVerif').value;
+  document.getElementById('configExata').classList.toggle('hidden', v !== 'exata');
+  document.getElementById('configLlm').classList.toggle('hidden', v !== 'llm');
+}
+function verificar() {
+  const spin = document.getElementById('spinVerif'); spin.classList.add('on');
+  document.getElementById('resVerif').classList.add('hidden');
+  setTimeout(() => { spin.classList.remove('on'); document.getElementById('resVerif').classList.remove('hidden'); }, 1800);
+}
+
+/* ── Filtro histórico ── */
+function filtrar(q) {
+  const items = document.querySelectorAll('#listaHist .hist');
+  let v = 0;
+  items.forEach(it => {
+    const show = !q || it.dataset.txt.includes(q.toLowerCase());
+    it.style.display = show ? '' : 'none';
+    if (show) v++;
+  });
+  document.getElementById('totalHist').textContent = `Total: ${v} registro(s)`;
+}
+
+/* ── Toast ── */
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+</script>
+</body>
+</html>
