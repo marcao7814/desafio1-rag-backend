@@ -447,43 +447,59 @@ def api_verificar():
         if modo == "exata":
             from content_guard import auditar_banco
             palavras = [p.strip() for p in criterio.splitlines() if p.strip()]
-            ocorrencias = auditar_banco(
+            raw = auditar_banco(
                 psycopg_url=db.PSYCOPG_URL,
                 collection=db.COLLECTION,
                 lista=palavras,
                 source=arquivo,
             )
-            # Normaliza para formato padrão
-            ocorrencias = [
-                {
-                    "arquivo": oc["arquivo"],
-                    "nome":    oc["nome"],
-                    "pagina":  oc["pagina"],
-                    "trecho":  oc["trecho"],
+            # Separa falsos positivos conhecidos das ocorrências reais
+            ocorrencias       = []
+            auto_aprovados    = []
+            for oc in raw:
+                fp_match = None
+                for p in oc["palavras"]:
+                    fp_match = db.checar_falso_positivo(p, oc["trecho"])
+                    if fp_match:
+                        break
+                item = {
+                    "arquivo":  oc["arquivo"],
+                    "nome":     oc["nome"],
+                    "pagina":   oc["pagina"],
+                    "trecho":   oc["trecho"],
                     "palavras": oc["palavras"],
                 }
-                for oc in ocorrencias
-            ]
+                if fp_match:
+                    item["auto_aprovado"] = True
+                    item["fp_observacao"] = fp_match["observacao"]
+                    auto_aprovados.append(item)
+                else:
+                    ocorrencias.append(item)
         else:
             from content_guard import auditar_banco_llm
             llm = _get_llm()
-            resultado = auditar_banco_llm(
+            resultado   = auditar_banco_llm(
                 psycopg_url=db.PSYCOPG_URL,
                 collection=db.COLLECTION,
                 criterio=criterio,
                 llm=llm,
                 source=arquivo,
             )
-            # auditar_banco_llm retorna (reprovados, log)
-            ocorrencias = resultado[0] if isinstance(resultado, tuple) else resultado
+            ocorrencias    = resultado[0] if isinstance(resultado, tuple) else resultado
+            auto_aprovados = []
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
     verification_id = db.salvar_verificacao_cache(arquivo, modo, criterio, ocorrencias)
 
+    # Registra auto-aprovações no banco (tipo='falso_positivo')
+    for idx, oc in enumerate(auto_aprovados):
+        db.aprovar_chunk_manual(verification_id, -(idx + 1), oc.get("fp_observacao", ""), "falso_positivo")
+
     return jsonify({
         "verification_id": verification_id,
         "ocorrencias":     ocorrencias,
+        "auto_aprovados":  auto_aprovados,
         "total":           len(ocorrencias),
         "status":          "aprovado" if not ocorrencias else "reprovado",
         "nome_arquivo":    nome,

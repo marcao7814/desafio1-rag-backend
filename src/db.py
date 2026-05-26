@@ -23,7 +23,7 @@ PSYCOPG_URL = (
 # ── Inicialização ─────────────────────────────────────────────────────────────
 
 def criar_tabela_cache():
-    """Cria/migra as tabelas de cache e aprovação manual."""
+    """Cria/migra as tabelas de cache, aprovação manual e falsos positivos."""
     with psycopg.connect(PSYCOPG_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -61,6 +61,20 @@ def criar_tabela_cache():
                 )
             """)
             cur.execute("ALTER TABLE aprovacao_manual ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'aprovado'")
+            # Tabela de falsos positivos — libera automaticamente ocorrências conhecidas
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS falso_positivo_cache (
+                    id           SERIAL PRIMARY KEY,
+                    palavra      TEXT NOT NULL,
+                    contexto     TEXT NOT NULL,
+                    observacao   TEXT,
+                    collection   VARCHAR NOT NULL DEFAULT 'documentos_rag',
+                    data_criacao TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute(
+                "ALTER TABLE falso_positivo_cache ADD COLUMN IF NOT EXISTS collection VARCHAR NOT NULL DEFAULT 'documentos_rag'"
+            )
         conn.commit()
 
 
@@ -375,7 +389,8 @@ def _atualizar_status_verificacao(verification_id: int):
                 (verification_id,),
             )
             contagens     = {r[0]: r[1] for r in cur.fetchall()}
-            n_aprovados   = contagens.get("aprovado", 0)
+            # falso_positivo conta como aprovado para efeito de status
+            n_aprovados   = contagens.get("aprovado", 0) + contagens.get("falso_positivo", 0)
             n_confirmados = contagens.get("reprovado_confirmado", 0)
             n_revisados   = n_aprovados + n_confirmados
 
@@ -393,3 +408,78 @@ def _atualizar_status_verificacao(verification_id: int):
                 (novo_status, verification_id),
             )
         conn.commit()
+
+
+# ── Falsos Positivos ──────────────────────────────────────────────────────────
+
+def salvar_falso_positivo(palavra: str, contexto: str, observacao: str, collection: str = None) -> int:
+    """Registra um falso positivo para liberação automática em verificações futuras."""
+    col = collection or COLLECTION
+    sql = """
+        INSERT INTO falso_positivo_cache (palavra, contexto, observacao, collection)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id
+    """
+    with psycopg.connect(PSYCOPG_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (palavra.lower().strip(), contexto.strip(), observacao.strip(), col))
+            novo_id = cur.fetchone()[0]
+        conn.commit()
+    return novo_id
+
+
+def listar_falsos_positivos(collection: str = None) -> list[dict]:
+    """Retorna todos os falsos positivos registrados para a coleção."""
+    col = collection or COLLECTION
+    sql = """
+        SELECT id, palavra, contexto, observacao, data_criacao
+        FROM falso_positivo_cache
+        WHERE collection = %s
+        ORDER BY data_criacao DESC
+    """
+    with psycopg.connect(PSYCOPG_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (col,))
+            rows = cur.fetchall()
+    return [
+        {
+            "id":          r[0],
+            "palavra":     r[1],
+            "contexto":    r[2],
+            "observacao":  r[3] or "",
+            "data_criacao": r[4].strftime("%d/%m/%Y %H:%M") if r[4] else "",
+        }
+        for r in rows
+    ]
+
+
+def deletar_falso_positivo(fp_id: int) -> int:
+    """Remove um registro de falso positivo pelo id."""
+    with psycopg.connect(PSYCOPG_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM falso_positivo_cache WHERE id = %s", (fp_id,))
+            n = cur.rowcount
+        conn.commit()
+    return n
+
+
+def checar_falso_positivo(palavra: str, trecho: str, collection: str = None) -> dict | None:
+    """
+    Verifica se a ocorrência de `palavra` em `trecho` é um falso positivo conhecido.
+    Retorna o registro do FP se houver correspondência, ou None.
+    A correspondência é por substring normalizada (sem acentos, case-insensitive).
+    """
+    import unicodedata
+
+    def _norm(t: str) -> str:
+        return unicodedata.normalize("NFD", t.lower()).encode("ascii", "ignore").decode()
+
+    col        = collection or COLLECTION
+    fps        = listar_falsos_positivos(col)
+    trecho_n   = _norm(trecho)
+    palavra_n  = _norm(palavra)
+
+    for fp in fps:
+        if _norm(fp["palavra"]) == palavra_n and _norm(fp["contexto"]) in trecho_n:
+            return fp
+    return None
