@@ -445,8 +445,13 @@ def api_upload_pdfs():
     })
 
 
-@app.route("/api/pdfs/<path:source>", methods=["DELETE"])
-def api_deletar_pdf(source):
+@app.route("/api/pdfs/item", methods=["DELETE"])
+def api_deletar_pdf():
+    # "source" vai no corpo (JSON), não na URL: o path do arquivo (ex. "/tmp/xxx.pdf")
+    # começa com "/", e atrás de um proxy reverso o Werkzeug normaliza barras duplas
+    # na URL com um redirect — isso corta a barra inicial do valor, quebrando o match.
+    data = request.get_json(force=True)
+    source = (data or {}).get("source") or ""
     n = db.deletar_pdf_do_banco(source)
     return jsonify({"chunks_removidos": n, "pdfs": db.listar_pdfs_no_banco()})
 

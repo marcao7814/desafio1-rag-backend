@@ -153,7 +153,7 @@ async function deletarPdf(sourceEnc, btn) {
   if (!confirm("Remover este PDF do banco vetorial?")) return;
   const source = decodeURIComponent(sourceEnc);
   try {
-    const data = await api("DELETE", `/api/pdfs/${encodeURIComponent(source)}`);
+    const data = await api("DELETE", "/api/pdfs/item", { source });
     toast(`✅ ${data.chunks_removidos} chunk(s) removidos.`);
     renderTabelaPdfs(data.pdfs);
     atualizarPdfsBusca(data.pdfs);
