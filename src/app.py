@@ -29,6 +29,7 @@ from flask import (
     url_for,
 )
 from flask_wtf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
 # Garante que src/ está no path para importar os módulos locais
@@ -47,6 +48,12 @@ app = Flask(
     static_folder="static",
 )
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB por upload
+
+# Atrás do nginx (produção), o Flask só enxerga a conexão interna em HTTP.
+# Sem isso, qualquer redirect absoluto que o Werkzeug gera (ex.: normalização
+# de URL com barra no path converter) vira "http://", o navegador bloqueia
+# esse downgrade vindo de uma página https:// e o fetch() falha silenciosamente.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.secret_key = os.getenv("SECRET_KEY")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
