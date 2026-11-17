@@ -68,7 +68,16 @@ Deploy concluído em 2026-11-17. Sistema no ar em **https://rag.2-25-71-176.ssli
 
 ### Decisão: reaproveitar o Ollama do EAD em vez de subir outro
 
-A VPS tem só **2 vCPUs / 7.7 GB RAM**. Rodar um segundo Ollama (mais um Postgres, mais um Flask) do zero arriscava sobrecarregar a CPU compartilhada e derrubar o EAD, que já estava em produção. Optou-se por conectar o container `web` deste projeto à rede `ead_default` (externa) e falar diretamente com `ead-ollama-1` — só foi necessário baixar mais um modelo (`llama3.2`, o EAD só tinha `nomic-embed-text`). Testado sob carga: uma pergunta RAG não derrubou o EAD, mas fica perceptivelmente lenta (LLM em CPU).
+A VPS tem só **2 vCPUs / 7.7 GB RAM**. Rodar um segundo Ollama (mais um Postgres, mais um Flask) do zero arriscava sobrecarregar a CPU compartilhada e derrubar o EAD, que já estava em produção. Optou-se por conectar o container `web` deste projeto à rede `ead_default` (externa) e falar diretamente com `ead-ollama-1` — só foi necessário baixar mais modelos (o EAD só tinha `nomic-embed-text`). Testado sob carga: uma pergunta RAG não derrubou o EAD, mas a geração em CPU é lenta.
+
+### Ajustes de performance (CPU-only, 2 vCPUs)
+
+A resposta do RAG começou em vários minutos por pergunta — inviável para uso real. Dois ajustes, nessa ordem:
+
+1. **`k` de 15 para 6** chunks de contexto em `_buscar_rag` (`src/app.py`) — menos texto pro LLM processar. Caiu para ~53s.
+2. **Modelo `llama3.2` (3B) → `llama3.2:1b`** — ~3x menor, bem mais rápido em CPU, à custa de respostas um pouco mais simples. Decisão explícita do usuário (optou por velocidade em vez de manter o 3B).
+
+Se a demanda crescer, os próximos ajustes possíveis são: limitar `num_predict` (teto de tokens gerados) e, como último recurso, considerar uma API de nuvem (Gemini/OpenAI) só em produção, mantendo Ollama no dev local.
 
 ### ⚠️ Armadilha encontrada: colisão de nome de serviço entre projetos
 
