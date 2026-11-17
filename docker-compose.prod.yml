@@ -1,6 +1,12 @@
 services:
 
-  db:
+  # Nome "ragdb" (não "db") de propósito: este container entra também na rede
+  # externa "ead_default" (só para o "web" alcançar o Ollama compartilhado), e
+  # o projeto EAD também tem um serviço chamado "db" nessa mesma rede — com os
+  # dois usando o alias genérico "db", a resolução de nome fica ambígua e pode
+  # acabar conectando no Postgres ERRADO (já aconteceu: psycopg resolveu "db"
+  # para o Postgres do EAD em vez do deste projeto). Nome único evita a colisão.
+  ragdb:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     env_file: .env
@@ -27,7 +33,7 @@ services:
       - "5000"
     env_file: .env
     depends_on:
-      db:
+      ragdb:
         condition: service_healthy
     networks:
       - default
@@ -35,8 +41,10 @@ services:
       - ead_default
     # proxy_net: rede do nginx compartilhado da VPS (ver documentos/config/infra-nginx/),
     #            que alcança este serviço pelo nome "rag-web".
-    # ead_default: rede do projeto EAD — usada só para falar com o container "ollama"
-    #              (Ollama compartilhado entre os dois projetos) pelo nome "ollama".
+    # ead_default: rede do projeto EAD — usada só para falar com o container
+    #              "ead-ollama-1" (Ollama compartilhado). Usamos o container_name
+    #              explícito, não o alias de serviço "ollama", pelo mesmo motivo
+    #              do comentário acima em "ragdb".
 
 volumes:
   rag_pgdata:
