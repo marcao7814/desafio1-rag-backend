@@ -16,6 +16,7 @@ function go(id, el) {
   // Carrega dados da aba ao abrir
   if (id === "hist")      carregarHistoricoPerguntas();
   if (id === "histverif") carregarHistoricoVerificacoes();
+  if (id === "usuarios")  carregarUsuarios();
 }
 
 /* ── Sidebar mobile ──────────────────────────────────────────────────────── */
@@ -41,6 +42,10 @@ function toast(msg, isErr = false) {
 /* ── API helper ──────────────────────────────────────────────────────────── */
 async function api(method, url, body = null) {
   const opts = { method, headers: {} };
+  if (method !== "GET") {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrf) opts.headers["X-CSRFToken"] = csrf;
+  }
   if (body && !(body instanceof FormData)) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
@@ -178,22 +183,18 @@ function atualizarStatsTop(pdfs) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   PAINEL — Busca (RAG + Internet)
+   PAINEL — Busca (RAG)
 ───────────────────────────────────────────────────────────────────────── */
 let fonteAtual = "rag";
 
 function setFonte(f) {
   fonteAtual = f;
   document.getElementById("btnFonteRag").classList.toggle("active", f === "rag");
-  document.getElementById("btnFonteWeb").classList.toggle("active", f === "web");
   document.getElementById("ragPdfsPanel").classList.toggle("hidden", f !== "rag");
-  document.getElementById("avisoWeb").classList.toggle("hidden", f !== "web");
-  document.getElementById("lblPerguntaBusca").textContent =
-    f === "rag" ? "Sua pergunta sobre os documentos" : "Sua pergunta (busca na internet)";
-  document.getElementById("inputBusca").placeholder =
-    f === "rag" ? "Ex.: Qual é o prazo de entrega do contrato?" : "Ex.: Qual é a cotação do dólar hoje?";
+  document.getElementById("lblPerguntaBusca").textContent = "Sua pergunta sobre os documentos";
+  document.getElementById("inputBusca").placeholder = "Ex.: Qual é o prazo de entrega do contrato?";
   // Limpa resultados
-  ["resBuscaRag","resBuscaWeb","cacheBusca"].forEach(id => {
+  ["resBuscaRag","cacheBusca"].forEach(id => {
     document.getElementById(id)?.classList.add("hidden");
   });
   document.getElementById("inputBusca").value = "";
@@ -231,7 +232,7 @@ function verificarPodeBuscar() {
   const v    = (document.getElementById("inputBusca")?.value || "").trim();
   const boxes = document.querySelectorAll("#pdfListaBusca input[type=checkbox]");
   const sel   = Array.from(boxes).filter(b => b.checked).length;
-  const pdfOk = fonteAtual === "web" || sel > 0;
+  const pdfOk = sel > 0;
   document.getElementById("btnBuscar").disabled = !v || !pdfOk;
 }
 
@@ -248,26 +249,19 @@ async function buscar() {
   const spinTxt = document.getElementById("spinBuscaTxt");
   btnB.disabled = true; spin.classList.add("on");
   document.getElementById("resBuscaRag").classList.add("hidden");
-  document.getElementById("resBuscaWeb").classList.add("hidden");
   document.getElementById("cacheBusca").classList.add("hidden");
 
   const ignorarCache = document.querySelector('input[name="acaoBusca"]:checked')?.value === "refazer";
 
   try {
-    if (fonteAtual === "rag") {
-      spinTxt.textContent = "Buscando nos documentos…";
-      const boxes   = document.querySelectorAll("#pdfListaBusca input[type=checkbox]");
-      const sources = Array.from(boxes).filter(b => b.checked).map(b => b.dataset.source);
+    spinTxt.textContent = "Buscando nos documentos…";
+    const boxes   = document.querySelectorAll("#pdfListaBusca input[type=checkbox]");
+    const sources = Array.from(boxes).filter(b => b.checked).map(b => b.dataset.source);
 
-      const data = await api("POST", "/api/busca/rag", { pergunta, sources, ignorar_cache: ignorarCache });
-      spinTxt.textContent = "Gerando resposta com o LLM…";
+    const data = await api("POST", "/api/busca/rag", { pergunta, sources, ignorar_cache: ignorarCache });
+    spinTxt.textContent = "Gerando resposta com o LLM…";
 
-      renderRespostaRag(data, pergunta);
-    } else {
-      spinTxt.textContent = "Buscando na internet via Gemini…";
-      const data = await api("POST", "/api/busca/web", { pergunta, ignorar_cache: ignorarCache });
-      renderRespostaWeb(data, pergunta);
-    }
+    renderRespostaRag(data, pergunta);
   } catch (e) {
     toast("❌ " + e.message, true);
   } finally {
@@ -300,28 +294,6 @@ function renderRespostaRag(data, pergunta) {
 
   // Botão download
   const btnDl = document.getElementById("btnDownloadRag");
-  if (btnDl) btnDl.onclick = () => window.open(`/api/download/resposta/${data.cache_id}`);
-}
-
-function renderRespostaWeb(data, pergunta) {
-  document.getElementById("txtBuscaWeb").textContent = data.resposta;
-  document.getElementById("resBuscaWeb").classList.remove("hidden");
-
-  if (data.do_cache) {
-    document.getElementById("cacheBusca").classList.remove("hidden");
-    document.getElementById("cacheDataBusca").textContent = data.data_consulta;
-  }
-
-  // Fontes
-  const area = document.getElementById("fontesWeb");
-  area.innerHTML = (data.fontes || []).map((f, i) =>
-    `<div class="src-link">
-       <span class="num">[${i+1}]</span>
-       <a href="${f.url}" target="_blank" rel="noopener">${f.title || f.url}</a>
-     </div>`
-  ).join("") || '<div class="muted caption">Nenhuma fonte retornada.</div>';
-
-  const btnDl = document.getElementById("btnDownloadWeb");
   if (btnDl) btnDl.onclick = () => window.open(`/api/download/resposta/${data.cache_id}`);
 }
 
@@ -467,14 +439,8 @@ function renderHistoricoPerguntas(registros) {
     return;
   }
   lista.innerHTML = registros.map(r => {
-    const badge = r.tipo === "web"
-      ? '<span class="badge b-web">🌐 Web</span>'
-      : '<span class="badge b-rag">📄 RAG</span>';
-    const fontes = r.tipo === "web" && Array.isArray(r.chunks) && r.chunks.length
-      ? `<div class="mt8"><strong>Fontes:</strong>` +
-        r.chunks.map((f, i) => `<div class="src-link"><span class="num">[${i+1}]</span><a href="${f.url}" target="_blank">${f.title||f.url}</a></div>`).join("") +
-        `</div>`
-      : "";
+    const badge = '<span class="badge b-rag">📄 RAG</span>';
+    const fontes = "";
 
     return `<div class="hist-item">
       <div class="hist-hd" onclick="toggleH(this)">
@@ -612,5 +578,69 @@ async function deletarVerificacao(id, btn) {
     await api("DELETE", `/api/verificar/${id}`);
     btn.closest(".hist-item").remove();
     toast("✅ Verificação removida.");
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PAINEL — Usuários (admin)
+───────────────────────────────────────────────────────────────────────── */
+async function carregarUsuarios() {
+  const tbody = document.getElementById("tblUsuariosBody");
+  tbody.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">Carregando…</td></tr>';
+  try {
+    const usuarios = await api("GET", "/api/usuarios");
+    renderUsuarios(usuarios);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">Erro ao carregar: ${e.message}</td></tr>`;
+  }
+}
+
+function renderUsuarios(usuarios) {
+  const tbody = document.getElementById("tblUsuariosBody");
+  if (!usuarios.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">Nenhum usuário cadastrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = usuarios.map(u => `
+    <tr>
+      <td>${u.nome}</td>
+      <td>${u.email}</td>
+      <td><span class="tag">${u.tipouser}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="excluirUsuario(${u.iduser})">🗑️</button></td>
+    </tr>
+  `).join("");
+}
+
+async function criarUsuario() {
+  const nome  = document.getElementById("novoUserNome").value.trim();
+  const email = document.getElementById("novoUserEmail").value.trim();
+  const senha = document.getElementById("novoUserSenha").value;
+  const tipouser = document.getElementById("novoUserTipo").value;
+  const msg = document.getElementById("usuarioMsg");
+
+  if (!nome || !email || !senha) {
+    msg.innerHTML = '<div class="alert alert-error">Preencha nome, e-mail e senha.</div>';
+    return;
+  }
+
+  try {
+    const data = await api("POST", "/api/usuarios", { nome, email, senha, tipouser });
+    renderUsuarios(data.usuarios);
+    document.getElementById("novoUserNome").value = "";
+    document.getElementById("novoUserEmail").value = "";
+    document.getElementById("novoUserSenha").value = "";
+    msg.innerHTML = "";
+    toast("✅ Usuário cadastrado.");
+  } catch (e) {
+    msg.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+  }
+}
+
+async function excluirUsuario(iduser) {
+  if (!confirm("Excluir este usuário?")) return;
+  try {
+    const data = await api("DELETE", `/api/usuarios/${iduser}`);
+    renderUsuarios(data.usuarios);
+    toast("✅ Usuário excluído.");
   } catch (e) { toast(e.message, true); }
 }

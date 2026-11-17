@@ -27,8 +27,16 @@ elif PROVIDER == "gemini":
     from langchain_google_genai import ChatGoogleGenerativeAI
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
 
+elif PROVIDER == "ollama":
+    from langchain_ollama import ChatOllama
+    llm = ChatOllama(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        temperature=0,
+    )
+
 else:
-    raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai' ou 'gemini'.")
+    raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai', 'gemini' ou 'ollama'.")
 
 # ---------------------------------------------------------------------------
 # 2. Template do prompt

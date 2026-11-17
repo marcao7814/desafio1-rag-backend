@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estudo Hostinger — VPS, Docker, Python, PostgreSQL</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --code-fg: #24292f;
+    --accent: #0969da;
+    --table-stripe: #f6f8fa;
+    --quote-border: #d0d7de;
+    --h-border: #d8dee4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --code-fg: #e6edf3;
+      --accent: #4493f8;
+      --table-stripe: #161b22;
+      --quote-border: #3d444d;
+      --h-border: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+  h1, h2, h3, h4 {
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: 1.8em;
+    margin-bottom: 0.6em;
+  }
+  h1 { font-size: 2rem; border-bottom: 1px solid var(--h-border); padding-bottom: 0.4em; }
+  h2 { font-size: 1.5rem; border-bottom: 1px solid var(--h-border); padding-bottom: 0.3em; margin-top: 2.2em; }
+  h3 { font-size: 1.2rem; }
+  h4 { font-size: 1rem; color: var(--muted); }
+  p { margin: 0.8em 0; }
+  ul, ol { margin: 0.6em 0; padding-left: 1.6em; }
+  li { margin: 0.25em 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1em 1.2em;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+    white-space: pre;
+  }
+  blockquote {
+    margin: 1em 0;
+    padding: 0.2em 1em;
+    border-left: 4px solid var(--quote-border);
+    color: var(--muted);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    overflow-x: auto;
+    display: block;
+  }
+  table thead { display: table; width: 100%; table-layout: fixed; }
+  table tbody { display: table; width: 100%; table-layout: fixed; }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5em 0.8em;
+    text-align: left;
+  }
+  thead th { background: var(--table-stripe); }
+  tbody tr:nth-child(even) { background: var(--table-stripe); }
+  hr {
+    border: none;
+    border-top: 1px solid var(--h-border);
+    margin: 2.2em 0;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.92em;
+    border-left: 4px solid var(--quote-border);
+    padding: 0.3em 1em;
+    margin-bottom: 2em;
+  }
+  .arch {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  nav.toc {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1em 1.4em;
+    margin: 1.5em 0 2.5em;
+  }
+  nav.toc h2 { margin-top: 0; border: none; font-size: 1.1rem; }
+  nav.toc ol { margin: 0.4em 0; }
+  @media print {
+    body { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Estudo Hostinger — VPS, Docker, Python, PostgreSQL e Publicação na Internet</h1>
+
+<div class="meta">
+Fonte: interação direta com o <strong>Agente de IA da Hostinger</strong> (chat do site
+<a href="https://www.hostinger.com/br" target="_blank" rel="noopener">hostinger.com/br</a>, 2026-11-14)
+complementada com boas práticas gerais de administração de servidores Linux.
+</div>
+
+<nav class="toc">
+<h2>Sumário</h2>
+<ol>
+  <li><a href="#secao-1">Servidor VPS</a></li>
+  <li><a href="#secao-2">Docker — instalação e parâmetros</a></li>
+  <li><a href="#secao-3">Python — instalação e uso</a></li>
+  <li><a href="#secao-4">PostgreSQL — instalação e uso</a></li>
+  <li><a href="#secao-5">Disponibilizar o projeto Python na internet</a></li>
+  <li><a href="#secao-6">Resumo — ciclo completo de implantação</a></li>
+</ol>
+</nav>
+
+<h2 id="secao-1">1. Servidor VPS</h2>
+
+<h3>1.1 O que é</h3>
+<p>O VPS (<em>Virtual Private Server</em>) da Hostinger é um servidor virtual <strong>autogerenciado</strong>: diferente da hospedagem compartilhada, aqui você tem <strong>acesso root completo</strong> e é responsável por administrar o sistema operacional, firewall, serviços (Docker, banco de dados, etc.) e segurança. Em compensação, tem controle total sobre o ambiente — pode instalar qualquer stack (Python, Node.js, Docker, Postgres, etc.).</p>
+
+<h3>1.2 Criar e acessar o VPS</h3>
+<ol>
+  <li>Escolher um plano de VPS com <strong>Ubuntu LTS</strong> (distribuição recomendada por estabilidade e suporte longo).</li>
+  <li>No painel (hPanel), obter:
+    <ul>
+      <li>IP público do servidor;</li>
+      <li>usuário administrativo (<code>root</code>);</li>
+      <li>senha ou chave SSH;</li>
+      <li>sistema operacional instalado.</li>
+    </ul>
+  </li>
+  <li>Conectar via SSH:</li>
+</ol>
+<pre><code>ssh root@IP_DO_VPS</code></pre>
+
+<p>Atualizar o sistema:</p>
+<pre><code>apt update &amp;&amp; apt upgrade -y</code></pre>
+
+<p>Criar um usuário administrativo separado (boa prática — evitar operar como <code>root</code> no dia a dia):</p>
+<pre><code>adduser deploy
+usermod -aG sudo deploy</code></pre>
+
+<p>A partir daqui, prefira acessar o servidor com o usuário <code>deploy</code> em vez de <code>root</code>.</p>
+
+<h3>1.3 Segurança inicial do servidor</h3>
+<pre><code>timedatectl set-timezone America/Sao_Paulo
+hostnamectl set-hostname meu-servidor
+apt install ufw fail2ban -y</code></pre>
+
+<p>Liberar somente as portas necessárias:</p>
+<pre><code>ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable</code></pre>
+
+<p><strong>Recomendações:</strong></p>
+<ul>
+  <li>Usar autenticação por <strong>chave SSH</strong> (não só senha).</li>
+  <li>Desativar o login SSH direto do <code>root</code> (<code>PermitRootLogin no</code> em <code>/etc/ssh/sshd_config</code>).</li>
+  <li>Nunca expor o PostgreSQL publicamente (porta 5432 fechada para a internet).</li>
+  <li>Manter o Ubuntu sempre atualizado (<code>apt update &amp;&amp; apt upgrade</code>).</li>
+  <li>Fazer backups externos do banco e dos arquivos (fora do próprio VPS).</li>
+  <li>Armazenar senhas e segredos em variáveis de ambiente — nunca no código versionado.</li>
+</ul>
+
+<h3>1.4 Painel hPanel — Docker Manager</h3>
+<p>Além da linha de comando, a Hostinger oferece o <strong>Docker Manager</strong> direto no painel, com deploy visual de containers:</p>
+<ol>
+  <li>Abrir <strong>VPS</strong>.</li>
+  <li>Clicar em <strong>Manage</strong>.</li>
+  <li>Abrir <strong>Docker Manager</strong>.</li>
+  <li>Selecionar <strong>Compose</strong>.</li>
+  <li>Escolher uma das opções:
+    <ul>
+      <li>Compose a partir de uma URL;</li>
+      <li>Compose manual (colar o <code>docker-compose.yml</code>);</li>
+      <li>Deploy com um clique (templates prontos, ex.: Postgres, n8n, etc.).</li>
+    </ul>
+  </li>
+</ol>
+<p>Isso é um diferencial da Hostinger para quem não quer operar 100% via terminal.</p>
+
+<hr>
+
+<h2 id="secao-2">2. Docker — instalação e parâmetros</h2>
+
+<h3>2.1 Instalação no Ubuntu (via terminal)</h3>
+<p>Remover versões antigas (evita conflito com pacotes legados do Ubuntu):</p>
+<pre><code>apt remove docker docker-engine docker.io containerd runc</code></pre>
+
+<p>Instalar pré-requisitos:</p>
+<pre><code>apt install ca-certificates curl gnupg -y</code></pre>
+
+<p>Adicionar o repositório oficial do Docker e instalar o Docker Engine + plugin de Compose:</p>
+<pre><code>install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release &amp;&amp; echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list &gt; /dev/null
+
+apt update
+apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y</code></pre>
+
+<p>Verificar instalação:</p>
+<pre><code>docker --version
+docker compose version</code></pre>
+
+<p>Permitir que o usuário <code>deploy</code> use Docker sem <code>sudo</code>:</p>
+<pre><code>usermod -aG docker deploy</code></pre>
+<blockquote>Saia e entre novamente na sessão SSH para a alteração de grupo ter efeito.</blockquote>
+
+<h3>2.2 Docker Manager da Hostinger (via painel)</h3>
+<p>Mesmo fluxo descrito em <a href="#secao-1">1.4</a> — útil para quem prefere interface gráfica ao invés de editar <code>docker-compose.yml</code> manualmente via SSH.</p>
+
+<h3>2.3 Parâmetros principais do Docker Compose</h3>
+<p>Para cada serviço de um <code>docker-compose.yml</code>, os parâmetros essenciais são:</p>
+
+<table>
+<thead><tr><th>Parâmetro</th><th>Descrição</th></tr></thead>
+<tbody>
+<tr><td><strong>Nome do projeto</strong></td><td>Identificador do conjunto de containers (<code>COMPOSE_PROJECT_NAME</code>).</td></tr>
+<tr><td><strong>Nome do container</strong> (<code>container_name</code>)</td><td>Nome único do serviço, usado em <code>docker logs</code>, <code>docker exec</code>, etc.</td></tr>
+<tr><td><strong>Imagem</strong> (<code>image</code>)</td><td>Imagem Docker utilizada (ex.: <code>python:3.12-slim</code>, <code>postgres:16</code>).</td></tr>
+<tr><td><strong>Portas</strong> (<code>ports</code>)</td><td>Mapeamento <code>HOST:CONTAINER</code>, ex.: <code>"8000:8000"</code>.</td></tr>
+<tr><td><strong>Volumes</strong> (<code>volumes</code>)</td><td>Armazenamento persistente, ex.: <code>pgdata:/var/lib/postgresql/data</code>.</td></tr>
+<tr><td><strong>Variáveis de ambiente</strong> (<code>environment</code> / <code>env_file</code>)</td><td>Senhas, portas, configurações — nunca hardcoded na imagem.</td></tr>
+<tr><td><strong>Política de reinício</strong> (<code>restart</code>)</td><td><code>always</code> | <code>unless-stopped</code> | <code>on-failure</code> | <code>no</code>.</td></tr>
+<tr><td><strong>Rede</strong> (<code>networks</code>)</td><td>Rede interna entre os containers (app ↔ banco), isolada da internet.</td></tr>
+<tr><td><strong>depends_on</strong></td><td>Ordem de inicialização entre serviços (ex.: app depende do Postgres).</td></tr>
+<tr><td><strong>healthcheck</strong></td><td>Verificação de saúde do container (reinício automático se falhar).</td></tr>
+</tbody>
+</table>
+
+<p><strong>Exemplo de <code>docker-compose.yml</code> para app Python + PostgreSQL:</strong></p>
+<pre><code>services:
+  app:
+    build: .
+    container_name: meu-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://app_user:SENHA_FORTE@postgres:5432/app_db
+    depends_on:
+      - postgres
+    networks:
+      - rede-interna
+
+  postgres:
+    image: postgres:16
+    container_name: meu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: SENHA_FORTE
+      POSTGRES_DB: app_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - rede-interna
+    # Sem "ports" publicada propositalmente — o Postgres não deve ser acessível pela internet
+
+volumes:
+  pgdata:
+
+networks:
+  rede-interna:</code></pre>
+
+<p>Para uma aplicação Python típica em produção, a composição ideal é:</p>
+<ol>
+  <li>Um container da aplicação;</li>
+  <li>Um container PostgreSQL;</li>
+  <li>Opcionalmente, um proxy reverso (Nginx ou Caddy);</li>
+  <li>Volume(s) para persistir o banco;</li>
+  <li>Uma rede interna entre os containers — <strong>o PostgreSQL nunca deve ter a porta publicada para a internet</strong> (sem <code>ports:</code> mapeado para o host).</li>
+</ol>
+
+<p><strong>Comandos úteis do dia a dia:</strong></p>
+<pre><code>docker ps
+docker logs NOME_DO_CONTAINER
+docker compose ps
+docker compose logs -f
+docker compose restart
+docker compose down
+docker compose up -d --build</code></pre>
+
+<hr>
+
+<h2 id="secao-3">3. Python — instalação e uso</h2>
+
+<h3>3.1 Instalação no VPS (direto no Ubuntu)</h3>
+<pre><code>apt install python3 python3-pip python3-venv python3-dev build-essential -y</code></pre>
+
+<p>Verificar:</p>
+<pre><code>python3 --version
+pip3 --version</code></pre>
+
+<p>Criar a pasta do projeto:</p>
+<pre><code>mkdir -p /opt/meu-projeto
+cd /opt/meu-projeto</code></pre>
+
+<p>Criar e ativar um ambiente virtual (<strong>isola as dependências do projeto do Python global do sistema</strong>):</p>
+<pre><code>python3 -m venv venv
+source venv/bin/activate</code></pre>
+
+<p>Atualizar o instalador de pacotes e instalar dependências:</p>
+<pre><code>pip install --upgrade pip
+pip install -r requirements.txt</code></pre>
+
+<blockquote>Não instalar pacotes globalmente sem necessidade — o ambiente virtual evita conflito de versões entre projetos diferentes no mesmo servidor.</blockquote>
+
+<h3>3.2 Framework e servidor de produção</h3>
+<p>Frameworks Python comuns: <strong>Flask</strong>, <strong>Django</strong>, <strong>FastAPI</strong>.</p>
+<p>Em produção, <strong>nunca</strong> usar o servidor de desenvolvimento embutido do framework (<code>flask run</code>, <code>python manage.py runserver</code>, <code>uvicorn --reload</code>). Usar um servidor WSGI/ASGI de produção:</p>
+
+<table>
+<thead><tr><th>Framework</th><th>Servidor de produção</th></tr></thead>
+<tbody>
+<tr><td>Flask / Django (WSGI)</td><td><strong>Gunicorn</strong></td></tr>
+<tr><td>FastAPI (ASGI)</td><td><strong>Uvicorn</strong> (ou Gunicorn com worker ASGI, ex.: <code>uvicorn.workers.UvicornWorker</code>)</td></tr>
+</tbody>
+</table>
+
+<p>A aplicação deve escutar em uma porta interna, não na 80/443 diretamente:</p>
+<pre><code>0.0.0.0:8000</code></pre>
+<p>O proxy reverso (Nginx/Caddy) é quem recebe as requisições públicas (80/443) e as encaminha para essa porta interna.</p>
+
+<p><strong>Exemplo — Gunicorn:</strong></p>
+<pre><code>gunicorn --workers 3 --bind 0.0.0.0:8000 app:app</code></pre>
+
+<p><strong>Exemplo — Uvicorn (FastAPI):</strong></p>
+<pre><code>uvicorn main:app --host 0.0.0.0 --port 8000 --workers 3</code></pre>
+
+<h3>3.3 Configurações importantes via variáveis de ambiente</h3>
+<p>Nunca hardcodar no código-fonte. Definir via variáveis de ambiente (<code>.env</code>, <code>env_file</code> no Compose, ou <code>systemd</code> <code>Environment=</code>):</p>
+<ul>
+  <li>ambiente de produção (<code>ENV=production</code>);</li>
+  <li>chave secreta da aplicação (<code>SECRET_KEY</code>);</li>
+  <li>URL de conexão do banco (<code>DATABASE_URL</code>);</li>
+  <li>usuário e senha do PostgreSQL;</li>
+  <li>modo de depuração <strong>desativado</strong> (<code>DEBUG=False</code>);</li>
+  <li>domínio(s) autorizado(s) (<code>ALLOWED_HOSTS</code>);</li>
+  <li>origem permitida para CORS;</li>
+  <li>caminho de arquivos estáticos;</li>
+  <li>nível de log.</li>
+</ul>
+<blockquote><strong>Nunca</strong> deixar <code>DEBUG</code> ativado em produção — expõe stack trace, variáveis internas e caminhos do servidor (information disclosure).</blockquote>
+
+<hr>
+
+<h2 id="secao-4">4. PostgreSQL — instalação e uso</h2>
+
+<h3>4.1 PostgreSQL direto no Ubuntu</h3>
+<pre><code>apt install postgresql postgresql-contrib -y</code></pre>
+
+<p>Verificar o serviço:</p>
+<pre><code>systemctl status postgresql</code></pre>
+
+<p>Acessar o console administrativo:</p>
+<pre><code>sudo -u postgres psql</code></pre>
+
+<p>Criar um usuário e um banco <strong>exclusivos da aplicação</strong> (nunca usar o superusuário <code>postgres</code> na aplicação):</p>
+<pre><code>CREATE USER app_user WITH PASSWORD 'SENHA_FORTE';
+CREATE DATABASE app_db OWNER app_user;</code></pre>
+
+<p>Sair do console:</p>
+<pre><code>\q</code></pre>
+
+<p>String de conexão usada pela aplicação:</p>
+<pre><code>postgresql://app_user:SENHA_FORTE@localhost:5432/app_db</code></pre>
+
+<h3>4.2 PostgreSQL via Docker</h3>
+<p>Ao rodar o Postgres em container, configurar:</p>
+<ul>
+  <li><strong>volume persistente</strong> apontando para <code>/var/lib/postgresql/data</code> (sem isso, os dados são perdidos ao recriar o container);</li>
+  <li>nome do banco (<code>POSTGRES_DB</code>);</li>
+  <li>usuário (<code>POSTGRES_USER</code>);</li>
+  <li>senha (<code>POSTGRES_PASSWORD</code>);</li>
+  <li>política de reinício (<code>restart: unless-stopped</code>);</li>
+  <li>rede interna (sem publicar a porta 5432 para fora);</li>
+  <li>rotina de backup externo.</li>
+</ul>
+
+<p>Dentro do Docker Compose, a aplicação acessa o banco <strong>pelo nome do serviço</strong> definido no <code>docker-compose.yml</code>, não por <code>localhost</code>:</p>
+<pre><code>host=postgres port=5432 database=app_db user=app_user password=SENHA_FORTE</code></pre>
+
+<h3>4.3 Migrações e backups</h3>
+<p>Usar a ferramenta de migração do próprio framework:</p>
+<ul>
+  <li><strong>Django migrations</strong> (Django);</li>
+  <li><strong>Alembic</strong> (SQLAlchemy / FastAPI);</li>
+  <li>ferramenta equivalente de outros frameworks.</li>
+</ul>
+
+<p>Backup regular com <code>pg_dump</code>:</p>
+<pre><code>pg_dump -U app_user -h localhost app_db &gt; backup.sql</code></pre>
+
+<blockquote>O backup deve ser copiado para <strong>outro local</strong> (outro servidor, storage externo, S3, etc.). Um arquivo armazenado apenas no mesmo VPS não é uma estratégia de recuperação de desastres — se o VPS falhar, o backup se perde junto.</blockquote>
+
+<hr>
+
+<h2 id="secao-5">5. Disponibilizar o projeto Python na internet (endereço HTTP)</h2>
+
+<h3>5.1 Domínio e DNS</h3>
+<ol>
+  <li>Registrar ou usar um domínio existente.</li>
+  <li>Criar um registro DNS do tipo <code>A</code>:
+    <ul>
+      <li>nome: <code>@</code>;</li>
+      <li>valor: IP público do VPS.</li>
+    </ul>
+  </li>
+  <li>Opcionalmente, criar outro registro:
+    <ul>
+      <li>nome: <code>www</code>;</li>
+      <li>valor: IP público do VPS.</li>
+    </ul>
+  </li>
+</ol>
+<blockquote>A propagação de DNS pode levar de minutos a algumas horas.</blockquote>
+
+<h3>5.2 Proxy reverso</h3>
+<p>Fluxo recomendado de uma requisição:</p>
+<pre class="arch"><code>Internet → domínio → Nginx/Caddy → aplicação Python (Gunicorn/Uvicorn) → PostgreSQL</code></pre>
+
+<p>O proxy reverso deve:</p>
+<ul>
+  <li>escutar nas portas 80 (HTTP) e 443 (HTTPS);</li>
+  <li>encaminhar (<code>proxy_pass</code>) para a aplicação Python na porta interna (ex.: 8000);</li>
+  <li>preservar os cabeçalhos HTTP originais (<code>Host</code>, <code>X-Forwarded-For</code>, <code>X-Forwarded-Proto</code>);</li>
+  <li>servir arquivos estáticos diretamente (mais eficiente que deixar isso para o Python);</li>
+  <li>limitar o tamanho de requisições, se necessário;</li>
+  <li>habilitar HTTPS (TLS).</li>
+</ul>
+
+<p><strong>Exemplo mínimo de Nginx:</strong></p>
+<pre><code>server {
+    listen 80;
+    server_name seu-dominio.com www.seu-dominio.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}</code></pre>
+
+<blockquote>Nunca expor o servidor de desenvolvimento Python (<code>runserver</code>, <code>flask run</code>) diretamente à internet.</blockquote>
+
+<h3>5.3 Serviço persistente (manter a aplicação sempre rodando)</h3>
+<p><strong>Se a aplicação roda direto no Ubuntu (sem Docker):</strong> usar <code>systemd</code> para:</p>
+<ul>
+  <li>iniciar a aplicação automaticamente no boot;</li>
+  <li>reiniciá-la em caso de falha;</li>
+  <li>definir usuário e diretório de execução;</li>
+  <li>carregar variáveis de ambiente;</li>
+  <li>registrar logs (<code>journalctl</code>).</li>
+</ul>
+
+<p><strong>Exemplo de unit <code>systemd</code></strong> (<code>/etc/systemd/system/meu-app.service</code>):</p>
+<pre><code>[Unit]
+Description=Meu App Python
+After=network.target
+
+[Service]
+User=deploy
+WorkingDirectory=/opt/meu-projeto
+EnvironmentFile=/opt/meu-projeto/.env
+ExecStart=/opt/meu-projeto/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+
+<pre><code>systemctl daemon-reload
+systemctl enable --now meu-app</code></pre>
+
+<p><strong>Se a aplicação roda em Docker:</strong> usar:</p>
+<ul>
+  <li><code>restart: unless-stopped</code>;</li>
+  <li><code>healthcheck</code>;</li>
+  <li>logs rotacionados (<code>logging</code> driver no Compose);</li>
+  <li>volume persistente;</li>
+  <li>rede interna isolada.</li>
+</ul>
+
+<h3>5.4 HTTP e HTTPS</h3>
+<p>O endereço HTTP inicial será:</p>
+<pre><code>http://seu-dominio.com</code></pre>
+
+<p>Para produção, o correto é usar <strong>HTTPS</strong>:</p>
+<pre><code>https://seu-dominio.com</code></pre>
+
+<p>Configurar um certificado TLS gratuito no proxy reverso (ex.: <strong>Let's Encrypt</strong> via <code>certbot</code>) e redirecionar todo tráfego HTTP para HTTPS:</p>
+<pre><code>apt install certbot python3-certbot-nginx -y
+certbot --nginx -d seu-dominio.com -d www.seu-dominio.com</code></pre>
+
+<blockquote>Nunca enviar senhas, tokens ou dados de usuários por HTTP puro (sem TLS).</blockquote>
+
+<hr>
+
+<h2 id="secao-6">6. Resumo — ciclo completo de implantação</h2>
+<ol>
+  <li>Desenvolver o projeto Python localmente.</li>
+  <li>Definir o arquivo de dependências (<code>requirements.txt</code>).</li>
+  <li>Criar a imagem Docker da aplicação (<code>Dockerfile</code>) — ou preparar o ambiente direto no Ubuntu.</li>
+  <li>Configurar variáveis de ambiente (segredos, URL do banco, etc.).</li>
+  <li>Configurar PostgreSQL e volumes persistentes.</li>
+  <li>Publicar o código/imagem no VPS (git clone, scp, registry de imagens, etc.).</li>
+  <li>Fazer o deploy — via <code>docker compose up -d</code> ou pelo <strong>Docker Manager</strong> do hPanel.</li>
+  <li>Verificar logs (<code>docker compose logs -f</code> ou <code>journalctl</code>).</li>
+  <li>Testar a aplicação internamente (<code>curl http://127.0.0.1:8000</code>).</li>
+  <li>Configurar domínio (DNS) e proxy reverso (Nginx/Caddy).</li>
+  <li>Ativar HTTPS (Let's Encrypt).</li>
+  <li>Configurar backups externos e monitoramento.</li>
+</ol>
+
+<h3>Arquitetura final recomendada</h3>
+<pre class="arch"><code>VPS Hostinger
+├── Firewall (ufw) + fail2ban
+├── Proxy reverso (Nginx/Caddy) — portas 80/443, TLS
+├── Docker
+│   ├── Container da aplicação Python (Gunicorn/Uvicorn, porta interna 8000)
+│   ├── Container PostgreSQL (porta interna 5432, sem exposição externa)
+│   ├── Volume persistente do PostgreSQL
+│   └── Rede privada Docker (app ↔ banco)
+└── Backups externos (fora do VPS)</code></pre>
+
+<p><strong>Princípio central:</strong> separar aplicação, banco de dados e proxy em camadas distintas, mantendo o PostgreSQL <strong>inacessível diretamente pela internet</strong> — toda comunicação externa passa obrigatoriamente pelo proxy reverso.</p>
+
+</div>
+</body>
+</html>

@@ -24,11 +24,7 @@ if errorlevel 1 (
 echo ============================================================
 echo  Verificando dependencias...
 echo ============================================================
-pip show flask >nul 2>&1
-if errorlevel 1 (
-    echo  Instalando Flask...
-    pip install flask>=3.0.0 --quiet
-)
+python -m pip install -r requirements.txt --quiet
 
 echo ============================================================
 echo  Iniciando servidor Flask (orquestrador Python)...

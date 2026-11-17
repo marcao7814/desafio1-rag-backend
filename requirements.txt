@@ -8,6 +8,7 @@ langchain-community>=0.3.0,<1.0.0
 langchain-openai>=0.2.0,<1.0.0
 langchain-google-genai>=2.0.0,<3.0.0
 google-generativeai>=0.8.0
+langchain-ollama>=0.2.0,<1.0.0
 
 # Banco vetorial (PostgreSQL + pgVector)
 langchain-postgres>=0.0.12
@@ -24,3 +25,7 @@ python-dotenv>=1.0.0
 # Front-end web
 streamlit>=1.35.0
 flask>=3.0.0
+flask-wtf>=1.2.0,<2.0.0
+
+# Autenticação
+bcrypt>=4.0.0

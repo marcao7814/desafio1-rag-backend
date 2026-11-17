@@ -39,8 +39,15 @@ elif PROVIDER == "gemini":
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
 
+elif PROVIDER == "ollama":
+    from langchain_ollama import OllamaEmbeddings
+    embeddings = OllamaEmbeddings(
+        model=os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    )
+
 else:
-    raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai' ou 'gemini'.")
+    raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai', 'gemini' ou 'ollama'.")
 
 # ---------------------------------------------------------------------------
 # Conexão com o vectorstore (somente leitura)

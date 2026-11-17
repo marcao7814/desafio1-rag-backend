@@ -63,8 +63,14 @@ def _get_embeddings():
 
         base.__class__ = _WithRetry
         return base
+    elif PROVIDER == "ollama":
+        from langchain_ollama import OllamaEmbeddings
+        return OllamaEmbeddings(
+            model=os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        )
     else:
-        raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai' ou 'gemini'.")
+        raise ValueError(f"LLM_PROVIDER inválido: '{PROVIDER}'. Use 'openai', 'gemini' ou 'ollama'.")
 
 
 # ---------------------------------------------------------------------------

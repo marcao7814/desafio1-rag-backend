@@ -14,16 +14,21 @@ import pathlib
 import re
 import sys
 import tempfile
+from functools import wraps
 from io import BytesIO
 
 from flask import (
     Flask,
     abort,
     jsonify,
+    redirect,
     render_template,
     request,
     send_file,
+    session,
+    url_for,
 )
+from flask_wtf import CSRFProtect
 from dotenv import load_dotenv
 
 # Garante que src/ está no path para importar os módulos locais
@@ -32,7 +37,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 load_dotenv()
 
 # ── Importações dos módulos de negócio ───────────────────────────────────────
-import db  # camada de banco de dados
+import auth  # autenticação (login)
+import db    # camada de banco de dados
 
 # ── Configuração do Flask ────────────────────────────────────────────────────
 app = Flask(
@@ -42,9 +48,45 @@ app = Flask(
 )
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB por upload
 
-PORT      = int(os.getenv("FLASK_PORT", 5000))
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash-lite")
-PROVIDER  = os.getenv("LLM_PROVIDER", "gemini").lower()
+app.secret_key = os.getenv("SECRET_KEY")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "0") == "1"
+app.config["WTF_CSRF_TIME_LIMIT"] = None
+csrf = CSRFProtect(app)
+
+
+@app.after_request
+def _security_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    if app.config["SESSION_COOKIE_SECURE"]:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+def role_required(role):
+    def dec(f):
+        @wraps(f)
+        def inner(*a, **kw):
+            if session.get("usuario", {}).get("tipouser") != role:
+                if request.path.startswith("/api/"):
+                    return jsonify({"erro": "Acesso restrito ao administrador."}), 403
+                return redirect(url_for("index"))
+            return f(*a, **kw)
+        return inner
+    return dec
+
+PORT     = int(os.getenv("FLASK_PORT", 5000))
+PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
+_DEFAULT_MODELS = {
+    "gemini": "gemini-2.5-flash-lite",
+    "openai": "gpt-4o-mini",
+    "ollama": os.getenv("OLLAMA_MODEL", "llama3.2"),
+}
+LLM_MODEL = os.getenv("LLM_MODEL", _DEFAULT_MODELS.get(PROVIDER, "gemini-2.5-flash-lite"))
 
 
 # ── Lazy-imports de módulos pesados (evita lentidão no startup) ──────────────
@@ -59,6 +101,13 @@ def _get_llm():
         if PROVIDER == "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI
             _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
+        elif PROVIDER == "ollama":
+            from langchain_ollama import ChatOllama
+            _llm = ChatOllama(
+                model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                temperature=0,
+            )
         else:
             from langchain_openai import ChatOpenAI
             _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -89,7 +138,65 @@ def _startup():
     global _startup_done
     if not getattr(app, "_startup_done", False):
         db.criar_tabela_cache()
+        auth.criar_tabelas_auth()
+        auth.seed_admin()
         app._startup_done = True
+
+
+@app.before_request
+def _require_login():
+    """Bloqueia qualquer rota (página ou API) a quem não estiver autenticado."""
+    rota_livre = (
+        request.path in ("/login", "/logout")
+        or request.path.startswith("/static/")
+    )
+    if rota_livre:
+        return None
+    if "usuario" not in session:
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Não autenticado."}), 401
+        return redirect(url_for("login"))
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROTAS — Login / Logout
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    erro = None
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip()
+        senha = request.form.get("senha") or ""
+
+        minutos = auth.tempo_restante_bloqueio(email)
+        if minutos:
+            erro = f"Muitas tentativas de login. Tente novamente em {minutos} minuto(s)."
+        else:
+            usuario = auth.buscar_usuario_por_email(email)
+            senha_hash = usuario["senha"] if usuario else None
+            # Chamada fora do "and" — sempre roda o bcrypt, mesmo se o e-mail não existir
+            # (verificação em tempo constante, evita vazar quais e-mails estão cadastrados).
+            senha_confere = auth.verificar_senha_tempo_constante(senha, senha_hash)
+            if usuario and senha_confere:
+                auth.registrar_login_sucesso(email)
+                session["usuario"] = {
+                    "iduser":   usuario["iduser"],
+                    "nome":     usuario["nome"],
+                    "email":    usuario["email"],
+                    "tipouser": usuario["tipouser"],
+                }
+                return redirect(url_for("index"))
+            auth.registrar_login_falho(email)
+            erro = "E-mail ou senha inválidos."
+    return render_template("login.html", erro=erro)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -280,6 +387,7 @@ def index():
         stats=stats,
         modelo=LLM_MODEL,
         provider=PROVIDER,
+        usuario=session["usuario"],
     )
 
 
@@ -385,44 +493,6 @@ def api_busca_rag():
     return jsonify({
         "resposta":  resposta,
         "chunks":    chunks_serializados,
-        "do_cache":  False,
-        "cache_id":  cache_id,
-    })
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# API — Busca Web
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/api/busca/web", methods=["POST"])
-def api_busca_web():
-    data     = request.get_json(force=True)
-    pergunta = (data.get("pergunta") or "").strip()
-
-    if not pergunta:
-        return jsonify({"erro": "Pergunta vazia."}), 400
-
-    cache = db.buscar_cache(pergunta, tipo="web")
-    if cache and not data.get("ignorar_cache"):
-        return jsonify({
-            "resposta":      cache["resposta"],
-            "fontes":        cache["chunks"],
-            "do_cache":      True,
-            "data_consulta": cache["data_consulta"].strftime("%d/%m/%Y %H:%M") if hasattr(cache["data_consulta"], "strftime") else str(cache["data_consulta"]),
-            "cache_id":      cache["id"],
-        })
-
-    try:
-        from web_search import buscar_na_web
-        resposta, fontes = buscar_na_web(pergunta)
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-    cache_id = db.salvar_cache(pergunta, resposta, fontes, tipo="web")
-
-    return jsonify({
-        "resposta":  resposta,
-        "fontes":    fontes,
         "do_cache":  False,
         "cache_id":  cache_id,
     })
@@ -558,6 +628,49 @@ def api_historico_verificacoes():
     for reg in registros:
         reg["aprovacoes"] = db.listar_aprovacoes_manuais(reg["id"])
     return jsonify(registros)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API — Usuários (somente administrador)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/usuarios", methods=["GET"])
+@role_required("adm")
+def api_listar_usuarios():
+    return jsonify(auth.listar_usuarios())
+
+
+@app.route("/api/usuarios", methods=["POST"])
+@role_required("adm")
+def api_criar_usuario():
+    data  = request.get_json(force=True)
+    nome  = (data.get("nome") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    senha = data.get("senha") or ""
+    tipouser = data.get("tipouser") or "user"
+
+    if not nome or not email or not senha:
+        return jsonify({"erro": "Nome, e-mail e senha são obrigatórios."}), 400
+    if tipouser not in ("adm", "user"):
+        return jsonify({"erro": "Perfil inválido."}), 400
+
+    try:
+        iduser = auth.criar_usuario(nome, email, senha, tipouser)
+    except Exception as e:
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            return jsonify({"erro": "E-mail já cadastrado."}), 400
+        return jsonify({"erro": str(e)}), 500
+
+    return jsonify({"iduser": iduser, "usuarios": auth.listar_usuarios()})
+
+
+@app.route("/api/usuarios/<int:iduser>", methods=["DELETE"])
+@role_required("adm")
+def api_deletar_usuario(iduser):
+    if iduser == session["usuario"]["iduser"]:
+        return jsonify({"erro": "Você não pode excluir o próprio usuário."}), 400
+    n = auth.deletar_usuario(iduser)
+    return jsonify({"removidos": n, "usuarios": auth.listar_usuarios()})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

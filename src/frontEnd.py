@@ -229,7 +229,7 @@ def buscar_cache(pergunta: str, tipo: str = "rag") -> dict | None:
 
 
 def salvar_cache(pergunta: str, resposta: str, resultados: list = None, tipo: str = "rag"):
-    """Insere nova entrada no cache incluindo chunks/fontes serializados em JSON."""
+    """Insere nova entrada no cache incluindo chunks serializados em JSON."""
     chunks_json = None
     if resultados and tipo == "rag":
         chunks_json = json.dumps([
@@ -240,9 +240,6 @@ def salvar_cache(pergunta: str, resposta: str, resultados: list = None, tipo: st
             }
             for doc, score in resultados
         ], ensure_ascii=False)
-    elif resultados and tipo == "web":
-        # resultados é lista de dicts {"title", "url"} para buscas web
-        chunks_json = json.dumps(resultados, ensure_ascii=False)
 
     sql = "INSERT INTO search_cache (pergunta, resposta, chunks, tipo) VALUES (%s, %s, %s, %s)"
     with psycopg.connect(PSYCOPG_URL) as conn:
@@ -946,115 +943,6 @@ with st.expander("🔍 Busca / Consulta", expanded=True):
             st.warning(f"Erro ao gerar PDF: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SEÇÃO 3 — Busca na Internet (via Gemini + Google Search)
-# ══════════════════════════════════════════════════════════════════════════════
-
-with st.expander("🌐 Busca na Internet (via Gemini)", expanded=False):
-
-    pergunta_web = st.text_input("Sua pergunta para a internet", key="pergunta_web_input")
-
-    # Limpa resultado quando a pergunta muda
-    if pergunta_web != st.session_state.get("_pergunta_web_ativa", ""):
-        for k in ["_resposta_web", "_fontes_web", "_buscando_web", "_trigger_web",
-                  "_aviso_web", "_cache_web", "_acao_web"]:
-            st.session_state.pop(k, None)
-        st.session_state["_pergunta_web_ativa"] = pergunta_web
-
-    if pergunta_web:
-        if "_cache_web" not in st.session_state:
-            try:
-                st.session_state["_cache_web"] = buscar_cache(pergunta_web, tipo="web")
-            except Exception as e:
-                st.session_state["_cache_web"] = None
-                st.error(f"Erro ao consultar cache: {e}")
-
-        cache_web = st.session_state["_cache_web"]
-
-        if cache_web:
-            data_fmt = cache_web["data_consulta"].strftime("%d/%m/%Y %H:%M")
-            st.info(f"⚡ Resposta em cache de **{data_fmt}**. Nenhum token será gerado.")
-            acao_web = st.radio(
-                "O que deseja fazer?",
-                ["Usar resposta salva", "Refazer consulta (gera tokens)"],
-                horizontal=True,
-                key="acao_cache_web",
-            )
-        else:
-            acao_web = "Refazer consulta"
-
-        if st.button("🌐 Buscar na Internet", type="primary",
-                     disabled=st.session_state.get("_buscando_web", False),
-                     key="btn_busca_web"):
-            st.session_state["_buscando_web"] = True
-            st.session_state["_trigger_web"] = True
-            st.session_state["_acao_web"] = acao_web
-            st.rerun()
-
-        if st.session_state.get("_trigger_web"):
-            st.session_state.pop("_trigger_web")
-            acao_atual = st.session_state.pop("_acao_web", "Refazer consulta")
-
-            if cache_web and acao_atual == "Usar resposta salva":
-                st.session_state["_resposta_web"] = cache_web["resposta"]
-                st.session_state["_fontes_web"] = cache_web["chunks"]
-            else:
-                from web_search import buscar_na_web
-
-                with st.spinner("Buscando na internet..."):
-                    try:
-                        resposta_web, fontes_web = buscar_na_web(pergunta_web)
-                        st.session_state["_resposta_web"] = resposta_web
-                        st.session_state["_fontes_web"] = fontes_web
-                        try:
-                            salvar_cache(pergunta_web, resposta_web, fontes_web, tipo="web")
-                            st.session_state.pop("_cache_web", None)
-                        except Exception as e:
-                            st.session_state["_aviso_web"] = f"Não foi possível salvar no cache: {e}"
-                    except Exception as e:
-                        st.session_state["_aviso_web"] = f"Erro na busca web: {e}"
-
-            st.session_state["_buscando_web"] = False
-            st.rerun()
-
-        if st.session_state.get("_aviso_web"):
-            st.warning(st.session_state.pop("_aviso_web"))
-
-    if "_resposta_web" in st.session_state:
-        st.markdown("---")
-        st.markdown(f"**Pergunta:** {st.session_state.get('_pergunta_web_ativa', '')}")
-        st.markdown("### Resposta")
-        with st.container(height=400):
-            st.write(st.session_state["_resposta_web"])
-
-        fontes = st.session_state.get("_fontes_web", [])
-        if fontes:
-            with st.expander(f"🔗 Fontes utilizadas ({len(fontes)})", expanded=True):
-                for i, f in enumerate(fontes, 1):
-                    titulo = f.get("title") or f.get("url", "")
-                    url = f.get("url", "")
-                    if url:
-                        st.markdown(f"**[{i}]** [{titulo}]({url})")
-                    else:
-                        st.markdown(f"**[{i}]** {titulo}")
-
-        try:
-            pdf_bytes_web = gerar_pdf_bytes(
-                st.session_state.get("_pergunta_web_ativa", ""),
-                st.session_state["_resposta_web"],
-                [],
-            )
-            st.download_button(
-                "📄 Baixar PDF desta resposta",
-                data=pdf_bytes_web,
-                file_name=_nome_pdf(st.session_state.get("_pergunta_web_ativa", "")),
-                mime="application/pdf",
-                key="dl_pdf_web",
-            )
-        except Exception as e:
-            st.warning(f"Erro ao gerar PDF: {e}")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # SEÇÃO 4 — Verificação de Conteúdo
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1188,6 +1076,13 @@ with st.expander("🚫 Verificação de Conteúdo", expanded=False):
                         if PROVIDER == "gemini":
                             from langchain_google_genai import ChatGoogleGenerativeAI
                             llm_mod = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
+                        elif PROVIDER == "ollama":
+                            from langchain_ollama import ChatOllama
+                            llm_mod = ChatOllama(
+                                model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+                                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                                temperature=0,
+                            )
                         else:
                             from langchain_openai import ChatOpenAI
                             llm_mod = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -1494,33 +1389,22 @@ with st.expander("📋 Histórico de Perguntas e Respostas", expanded=False):
 
         for reg in registros:
             data_fmt = reg["data_consulta"].strftime("%d/%m/%Y %H:%M")
-            tipo_badge = "🌐 Web" if reg.get("tipo") == "web" else "📄 RAG"
-            with st.expander(f"🗓 {data_fmt}  [{tipo_badge}]  —  {reg['pergunta'][:80]}"):
+            with st.expander(f"🗓 {data_fmt}  [📄 RAG]  —  {reg['pergunta'][:80]}"):
                 st.markdown(f"**Pergunta:** {reg['pergunta']}")
                 st.markdown("**Resposta:**")
                 st.write(reg["resposta"])
 
                 if reg.get("chunks"):
-                    if reg.get("tipo") == "web":
-                        with st.expander(f"🔗 Fontes ({len(reg['chunks'])} links)"):
-                            for i, fonte in enumerate(reg["chunks"], 1):
-                                titulo = fonte.get("title") or fonte.get("url", "")
-                                url = fonte.get("url", "")
-                                if url:
-                                    st.markdown(f"**[{i}]** [{titulo}]({url})")
-                                else:
-                                    st.markdown(f"**[{i}]** {titulo}")
-                    else:
-                        with st.expander(f"Ver chunks ({len(reg['chunks'])} recuperados)"):
-                            for i, chunk in enumerate(reg["chunks"], 1):
-                                meta = chunk.get("metadata", {})
-                                nome = meta.get("original_name") or os.path.basename(meta.get("source", "?"))
-                                st.markdown(
-                                    f"**[{i}]** Score: `{chunk.get('score', 0):.4f}` | "
-                                    f"Arquivo: `{nome}` | "
-                                    f"Página: `{meta.get('page', '?')}`"
-                                )
-                                st.caption(chunk.get("content", "")[:300] + "...")
+                    with st.expander(f"Ver chunks ({len(reg['chunks'])} recuperados)"):
+                        for i, chunk in enumerate(reg["chunks"], 1):
+                            meta = chunk.get("metadata", {})
+                            nome = meta.get("original_name") or os.path.basename(meta.get("source", "?"))
+                            st.markdown(
+                                f"**[{i}]** Score: `{chunk.get('score', 0):.4f}` | "
+                                f"Arquivo: `{nome}` | "
+                                f"Página: `{meta.get('page', '?')}`"
+                            )
+                            st.caption(chunk.get("content", "")[:300] + "...")
 
                 col_pdf, col_del = st.columns([1, 1])
                 with col_pdf:

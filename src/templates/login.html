@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Entrar — Sistema RAG</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<style>
+  .login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-card{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);
+              border-radius:var(--radius);padding:28px}
+  .login-logo{font-size:22px;font-weight:800;color:var(--primary);text-align:center;margin-bottom:4px}
+  .login-sub{color:var(--muted);text-align:center;font-size:13px;margin-bottom:20px}
+  .login-field{margin-bottom:14px}
+  .login-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-logo">🤖 RAG</div>
+    <div class="login-sub">Entre com seu e-mail e senha</div>
+
+    {% if erro %}
+      <div class="alert alert-error" role="alert">⚠ {{ erro }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div class="login-field">
+        <label for="email">E-mail</label>
+        <input type="text" id="email" name="email" maxlength="40" required autofocus value=""/>
+      </div>
+
+      <div class="login-field">
+        <label for="senha">Senha</label>
+        <input type="password" id="senha" name="senha" maxlength="40" required value=""/>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">Entrar</button>
+    </form>
+  </div>
+</div>
+<script>
+  // Nunca deixa e-mail/senha preenchidos ao carregar (mesmo com autofill do navegador).
+  window.addEventListener("load", () => {
+    document.getElementById("email").value = "";
+    document.getElementById("senha").value = "";
+  });
+</script>
+</body>
+</html>
