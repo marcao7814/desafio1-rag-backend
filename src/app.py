@@ -140,6 +140,7 @@ def _startup():
         db.criar_tabela_cache()
         auth.criar_tabelas_auth()
         auth.seed_admin()
+        _get_vectorstore()  # garante que langchain_pg_collection/embedding existam
         app._startup_done = True
 
 
