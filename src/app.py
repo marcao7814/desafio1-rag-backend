@@ -229,7 +229,7 @@ def _buscar_rag(pergunta: str, sources: list[str] | None = None):
     """Executa pipeline RAG completo. Retorna (resposta, resultados)."""
     vs = _get_vectorstore()
     filtro = {"source": {"$in": sources}} if sources else None
-    resultados = vs.similarity_search_with_score(pergunta, k=15, filter=filtro)
+    resultados = vs.similarity_search_with_score(pergunta, k=6, filter=filtro)
 
     if not resultados:
         return "Não tenho informações necessárias para responder sua pergunta.", []
