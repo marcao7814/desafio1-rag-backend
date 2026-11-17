@@ -46,3 +46,36 @@ O nginx roda fora deste repositório, em [`documentos/config/infra-nginx/`](./in
 ### ⚠️ Backup só existe na própria VPS
 
 Os backups ficam em `/opt/backups/ead/` — **no mesmo servidor** que hospeda o sistema. Isso cobre erro humano (ex. apagar dado por engano), mas **não cobre perda total da VPS** (falha de hardware, exclusão da instância, etc.) — se a VPS for perdida, os backups vão junto. Para proteção real contra desastre, o ideal é copiar os backups periodicamente para um local externo (outro servidor, S3/object storage, etc.) — não configurado ainda, pode ser um próximo passo se quiser.
+
+---
+
+## Projeto 2 — Sistema RAG, mesma VPS
+
+Deploy concluído em 2026-11-17. Sistema no ar em **https://rag.2-25-71-176.sslip.io**, compartilhando a VPS com o EAD acima.
+
+| Item verificado | Situação atual | Compatível? |
+|---|---|---|
+| Stack web | Flask 3 (`src/app.py`, objeto `app`) | ✅ |
+| Banco de dados | PostgreSQL (`pgvector/pgvector:pg16`) via `psycopg[binary]`, container próprio `ragdb` | ✅ |
+| LLM / Embeddings | Ollama **compartilhado** com o projeto EAD (`ead-ollama-1`), não um Ollama novo — ver decisão abaixo | ✅ |
+| Containerização | `Dockerfile` (Python 3.12-slim) + `docker-compose.prod.yml` com serviços `ragdb`, `web` | ✅ |
+| Servidor de produção | Gunicorn (`--workers 2 --timeout 300`, timeout alto por causa de LLM em CPU) | ✅ |
+| Segredos | Fora do `docker-compose.prod.yml` — só no `.env` da VPS | ✅ |
+| Porta do Postgres | Não publicada | ✅ |
+| Proxy reverso / TLS | nginx compartilhado, HTTPS via Let's Encrypt (expira 2027-02-15) | ✅ |
+| Repositório git | `github.com/marcao7814/desafio1-rag-backend` (público — sem deploy key necessária) | ✅ |
+| Cookies de sessão | `Secure; HttpOnly; SameSite=Lax` confirmado em produção | ✅ |
+
+### Decisão: reaproveitar o Ollama do EAD em vez de subir outro
+
+A VPS tem só **2 vCPUs / 7.7 GB RAM**. Rodar um segundo Ollama (mais um Postgres, mais um Flask) do zero arriscava sobrecarregar a CPU compartilhada e derrubar o EAD, que já estava em produção. Optou-se por conectar o container `web` deste projeto à rede `ead_default` (externa) e falar diretamente com `ead-ollama-1` — só foi necessário baixar mais um modelo (`llama3.2`, o EAD só tinha `nomic-embed-text`). Testado sob carga: uma pergunta RAG não derrubou o EAD, mas fica perceptivelmente lenta (LLM em CPU).
+
+### ⚠️ Armadilha encontrada: colisão de nome de serviço entre projetos
+
+Ao conectar o `web` deste projeto também na rede `ead_default` (só para alcançar o Ollama), o nome do **próprio** serviço de banco deste projeto (`db`) colidiu com o serviço `db` do EAD, que existe na mesma rede. O DNS interno do Docker resolveu `db` para o Postgres **do EAD**, não o deste projeto — só não corrompeu nada porque as senhas são diferentes e a conexão falhou por autenticação em vez de "funcionar" silenciosamente no banco errado. Correção: renomear o serviço para algo único (`ragdb`) e, pelo mesmo motivo, referenciar o Ollama pelo `container_name` exato (`ead-ollama-1`), nunca pelo alias genérico de serviço (`ollama`/`db`). **Lição para o próximo projeto nesta VPS:** nunca usar nomes de serviço genéricos (`db`, `web`, `app`, `cache`...) em um compose que se conecta a uma rede externa compartilhada — sempre prefixar com o nome do projeto.
+
+## Pendências (Projeto RAG)
+
+- [ ] Backup do banco — só manual até agora, sem cron (diferente do EAD).
+- [ ] Renovação automática do certificado para `rag.2-25-71-176.sslip.io` — não adicionada ao cron ainda.
+- [ ] Senha do admin padrão (`admin78`) ainda não trocada — é pública nesta documentação, trocar pelo painel "Usuários" do próprio sistema.
