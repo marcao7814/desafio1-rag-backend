@@ -1,0 +1,51 @@
+services:
+
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - rag_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+    # Sem "ports" publicada propositalmente — o Postgres não deve ser acessível pela internet
+
+  web:
+    build: .
+    container_name: rag-web
+    restart: always
+    expose:
+      - "5000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+      - proxy_net
+      - ead_default
+    # proxy_net: rede do nginx compartilhado da VPS (ver documentos/config/infra-nginx/),
+    #            que alcança este serviço pelo nome "rag-web".
+    # ead_default: rede do projeto EAD — usada só para falar com o container "ollama"
+    #              (Ollama compartilhado entre os dois projetos) pelo nome "ollama".
+
+volumes:
+  rag_pgdata:
+
+networks:
+  default:
+  proxy_net:
+    external: true
+    name: proxy_net
+  ead_default:
+    external: true
+    name: ead_default

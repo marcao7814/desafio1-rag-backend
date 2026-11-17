@@ -29,3 +29,6 @@ flask-wtf>=1.2.0,<2.0.0
 
 # Autenticação
 bcrypt>=4.0.0
+
+# Servidor de produção
+gunicorn>=22.0.0

@@ -5,6 +5,10 @@ env/
 
 # Variáveis de ambiente (segredos)
 .env
+.env.prod
+
+# Credenciais reais de produção (VPS, senhas, chaves)
+documentacao/config/confighostinger.md
 
 # Python
 __pycache__/

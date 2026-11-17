@@ -1,0 +1,32 @@
+services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: infra-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./www:/var/www/certbot:ro
+      - certs_data:/etc/letsencrypt:ro
+    networks:
+      - proxy_net
+
+  certbot:
+    image: certbot/certbot
+    container_name: infra-certbot
+    volumes:
+      - ./www:/var/www/certbot
+      - certs_data:/etc/letsencrypt
+    # Container não fica rodando — é usado sob demanda:
+    # docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d SEU-DOMINIO --email SEU-EMAIL --agree-tos --no-eff-email
+
+volumes:
+  certs_data:
+
+networks:
+  proxy_net:
+    external: true
+    name: proxy_net
